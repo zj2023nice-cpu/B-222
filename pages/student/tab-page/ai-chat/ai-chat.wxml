@@ -1,0 +1,98 @@
+<view class="chat-container">
+  <t-navbar title="AI 咨询" placeholder />
+  <t-chat-list
+    class="chat-list"
+    id="chat-list"
+    layout="both"
+    animation="dots"
+    bind:scrolltop="onScrollTop"
+  >
+    <view class="welcome-card" wx:if="{{ messages.length === 0 }}">
+      <t-avatar
+        image="{{ aiAvatar }}"
+        size="120rpx"
+        shape="circle"
+        class="welcome-avatar"
+      />
+      <view class="welcome-title">我是心理咨询 AI 助手</view>
+      <view class="welcome-desc">在这里，你可以安心倾诉</view>
+      <view class="welcome-tips">一切记录均已通过云端加密</view>
+    </view>
+
+    <block wx:for="{{ messages }}" wx:key="id">
+      <t-chat-message
+        wx:if="{{ item.role === 'ai' }}"
+        class="ai-msg"
+        role="assistant"
+        placement="left"
+        chat-id="{{ item.id }}"
+        status="{{ item.status || 'success' }}"
+        animation="{{ item.status === 'pending' ? 'dots' : '' }}"
+        name="{{ item.name }}"
+        datetime="{{ item.datetime }}"
+        show-name
+      >
+        <view slot="avatar">
+          <t-avatar
+            image="{{ aiAvatar || '' }}"
+            icon="user"
+            size="80rpx"
+            shape="circle"
+            data-type="ai"
+            bind:error="onAvatarError"
+          />
+        </view>
+        <view slot="content" class="ai-content-wrapper">
+          <t-chat-content
+            class="ai-content"
+            wx:if="{{ item.content }}"
+            content="{{ { type: 'markdown', data: item.content } }}"
+          />
+        </view>
+      </t-chat-message>
+
+      <t-chat-message
+        wx:else
+        class="user-msg"
+        is-me
+        role="user"
+        placement="right"
+        chat-id="{{ item.id }}"
+        status="{{ item.status || 'success' }}"
+        name="{{ item.name }}"
+        datetime="{{ item.datetime }}"
+        show-name
+      >
+        <view slot="avatar">
+          <t-avatar
+            shape="circle"
+            image="{{ userAvatar || '' }}"
+            icon="user"
+            size="80rpx"
+            data-type="user"
+            bind:error="onAvatarError"
+          />
+        </view>
+        <view slot="content" class="user-content-wrapper">
+          <t-chat-content
+            class="user-content"
+            content="{{ { type: 'markdown', data: item.content } }}"
+            is-me
+          />
+        </view>
+      </t-chat-message>
+    </block>
+  </t-chat-list>
+
+  <t-chat-sender
+    type="input"
+    placeholder="在这里你可以倾诉任何困扰..."
+    value="{{ inputValue }}"
+    loading="{{ isLoading }}"
+    render-presets="{{ [{ name: 'send', type: 'icon' }] }}"
+    auto-rise-with-keyboard
+    bind:change="onInputChange"
+    bind:send="sendMessage"
+    bind:stop="onCancel"
+  />
+</view>

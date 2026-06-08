@@ -1,0 +1,19 @@
+<view wx:if="{{ role === 'user' }}">
+  <student-home />
+</view>
+<view wx:elif="{{ role === 'consultant' }}">
+  <consultant-appointments />
+</view>
+<view wx:elif="{{ role === 'admin' }}">
+  <admin-user-manage />
+</view>
+<view wx:else class="loading-container">
+  <t-loading
+    theme="circular"
+    size="80rpx"
+    text="用户加载中..."
+    layout="vertical"
+  />
+</view>
+
+<t-toast id="t-toast" />

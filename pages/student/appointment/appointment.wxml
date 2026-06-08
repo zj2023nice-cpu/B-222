@@ -1,0 +1,219 @@
+<view class="container">
+  <t-navbar title="预约咨询" left-arrow placeholder />
+  <t-sticky offset-top="{{ navbarHeight }}">
+    <view class="search-wrap">
+      <t-search
+        value="{{ keyword }}"
+        placeholder="搜索专家姓名、专业领域或介绍"
+        shape="round"
+        bind:change="onSearch"
+        bind:clear="onSearchClear"
+        bind:submit="onSearch"
+      />
+    </view>
+  </t-sticky>
+
+  <!-- 骨架屏 -->
+  <view wx:if="{{ isLoading }}" class="skeleton-container">
+    <view wx:for="{{ 3 }}" wx:key="index" class="skeleton-card">
+      <t-skeleton rowCol="{{ avatarSkeleton }}" animation="flashing" />
+      <view style="flex: 1; margin-left: 24rpx">
+        <t-skeleton rowCol="{{ infoSkeleton }}" animation="flashing" />
+      </view>
+    </view>
+  </view>
+
+  <!-- 咨询师列表 -->
+  <list-view
+    wx:if="{{ !isLoading }}"
+    isRefreshing="{{ isRefreshing }}"
+    isEmpty="{{ consultants.length === 0 }}"
+    showFooter="{{ consultants.length > 0 }}"
+    emptyText="{{ keyword ? '未搜索到相关专家' : '暂无专家排班' }}"
+    footerText="已加载全部专家"
+    bind:refresh="onPullDownRefresh"
+    minHeight="calc(100vh - {{ navbarHeight }}px - 108rpx)"
+    customStyle="flex: 1"
+  >
+    <view class="consultant-list">
+      <view class="consultant-card" wx:for="{{ consultants }}" wx:key="_id">
+        <!-- 左侧头像 -->
+        <t-avatar
+          image="{{ item.avatar || '' }}"
+          icon="user"
+          shape="circle"
+          size="120rpx"
+          class="avatar"
+          bind:error="onAvatarError"
+          data-index="{{ index }}"
+        />
+
+        <!-- 右侧内容区 -->
+        <view class="content">
+          <view class="name-row">
+            <view class="name-left">
+              <text class="name">{{ item.name }}</text>
+              <t-tag theme="primary" variant="light" size="small" shape="round">
+                <t-icon
+                  name="user"
+                  size="20rpx"
+                  slot="prefix-icon"
+                  t-class="expert-tag-icon"
+                />
+                {{ item.title }}
+              </t-tag>
+            </view>
+
+            <t-button
+              theme="{{ item.isBooked ? 'success' : 'primary' }}"
+              size="extra-small"
+              shape="round"
+              variant="{{ item.isBooked ? 'light' : 'base' }}"
+              bindtap="book"
+              data-index="{{ index }}"
+              class="book-btn-mini"
+            >
+              {{ item.isBooked ? "已预约" : "预约" }}
+            </t-button>
+          </view>
+
+          <view class="rating">
+            <t-rate value="{{ item.score || 5 }}" size="24rpx" disabled />
+            <text class="score">{{ item.score || 5.0 }}</text>
+          </view>
+
+          <view class="expert">擅长：{{ item.expertise }}</view>
+          <view class="intro">{{ item.introduction }}</view>
+        </view>
+      </view>
+    </view>
+  </list-view>
+</view>
+
+<!-- 1. 排班选择半屏弹出层 -->
+<t-popup
+  visible="{{ showSchedulePopup }}"
+  placement="bottom"
+  bind:visible-change="onClosePopup"
+>
+  <view class="popup-content">
+    <view class="popup-header">
+      <text class="popup-title">选择预约时间</text>
+      <t-icon name="close" size="40rpx" color="#999" bindtap="onClosePopup" />
+    </view>
+
+    <!-- 日期选择 -->
+    <view class="date-selector">
+      <scroll-view scroll-x class="date-scroll">
+        <view
+          class="date-item {{ selectedDateIndex === index ? 'active' : '' }} {{
+            item.isFull ? 'disabled' : ''
+          }}"
+          wx:for="{{ availableDates }}"
+          wx:key="index"
+          bindtap="onSelectDate"
+          data-index="{{ index }}"
+        >
+          <text class="week">{{ item.week }}</text>
+          <text class="day">{{ item.day }}</text>
+        </view>
+      </scroll-view>
+    </view>
+
+    <!-- 时间段选择 -->
+    <view class="time-section">
+      <view class="time-grid">
+        <view
+          class="time-item {{ item.isFull ? 'disabled' : '' }} {{
+            selectedTimeIndex === index ? 'active' : ''
+          }}"
+          wx:for="{{ timeSlots }}"
+          wx:key="index"
+          bindtap="onSelectTime"
+          data-index="{{ index }}"
+        >
+          <text class="time">{{ item.time }}</text>
+          <text class="status">{{ item.isFull ? "约满" : "可选" }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="popup-footer">
+      <t-button
+        theme="primary"
+        block
+        shape="round"
+        bindtap="handleConfirmSelection"
+        >下一步</t-button
+      >
+    </view>
+  </view>
+</t-popup>
+
+<!-- 2. 最后确认弹窗 -->
+<t-dialog
+  visible="{{ showBookDialog }}"
+  title="预约确认"
+  confirm-btn="{{ { content: '确定预约', variant: 'base' } }}"
+  cancel-btn="取消"
+  bind:confirm="confirmBooking"
+  bind:cancel="closeBookDialog"
+>
+  <view slot="content" class="confirm-content">
+    <view class="confirm-info-item">
+      <text class="label">预约专家：</text>
+      <text class="value bold">{{ selectedConsultant.name }}</text>
+    </view>
+    <view class="confirm-info-item space-between">
+      <view class="item-sub">
+        <text class="label-tiny">日期：</text>
+        <text class="value bold">{{
+          availableDates[selectedDateIndex].dateStr
+        }}</text>
+      </view>
+      <view class="item-sub">
+        <text class="label-tiny">时间：</text>
+        <text class="value bold">{{ timeSlots[selectedTimeIndex].time }}</text>
+      </view>
+    </view>
+    <view class="confirm-tip">温馨提示：请提前15分钟准备</view>
+  </view>
+</t-dialog>
+
+<!-- 3. 取消确认弹窗 -->
+<t-dialog
+  visible="{{ showCancelDialog }}"
+  title="取消预约"
+  confirm-btn="{{ { content: '确定取消', variant: 'base', theme: 'danger' } }}"
+  cancel-btn="保留预约"
+  bind:confirm="confirmCancelBooking"
+  bind:cancel="closeCancelDialog"
+>
+  <view slot="content" class="confirm-content">
+    <view class="confirm-info-item">
+      <text class="label">咨询师：</text>
+      <text class="value bold">{{ selectedConsultant.name }}</text>
+    </view>
+    <view class="confirm-info-item space-between">
+      <view class="item-sub">
+        <text class="label-tiny">日期：</text>
+        <text class="value bold">{{ selectedConsultant.bookedDate }}</text>
+      </view>
+      <view class="item-sub">
+        <text class="label-tiny">时间：</text>
+        <text class="value bold">{{ selectedConsultant.bookedTime }}</text>
+      </view>
+    </view>
+    <view class="confirm-tip danger">注意：取消后该时段名额将重新释放</view>
+  </view>
+</t-dialog>
+
+<t-toast id="t-toast" t-class="custom-toast" direction="column" />
+
+<!-- 全局加载图标 -->
+<t-loading
+  theme="spinner"
+  size="40rpx"
+  class="wrapper"
+  wx:if="{{ isPageLoading }}"
+/>

@@ -1,0 +1,134 @@
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f7f8fa;
+  overflow: hidden;
+  padding-bottom: var(--tab-bar-height, 120rpx);
+}
+
+.chat-list {
+  flex: 1;
+  min-height: 0;
+  padding: 32rpx;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 强力隐藏滚动条：包括自定义组件内部的所有滚动容器 */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  color: transparent !important;
+}
+
+.chat-list::-webkit-scrollbar,
+.t-chat-list::-webkit-scrollbar,
+.t-chat-list__content::-webkit-scrollbar,
+.t-chat-list__content--reverse::-webkit-scrollbar,
+.t-scroll-view::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 针对某些安卓机型的特殊处理 */
+.t-chat-list {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+}
+
+/* 核心修复：通过 WXML 包装层强制降维打击，锁死内容宽度且自适应短文本 */
+.ai-content-wrapper,
+.user-content-wrapper {
+  display: inline-block; /* 核心：内联块级允许宽度收缩 */
+  vertical-align: top;
+  max-width: 78vw; /* 限制最大宽度，防止撞到屏幕边缘 */
+  min-width: 0;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* 确保内部组件能够填满包装层空间 */
+.ai-content,
+.user-content {
+  display: block;
+  width: 100% !important;
+  min-width: 0;
+}
+
+/* 深度修复：针对 MD 代码块提供内部横向滚动，防止其横向撑破气泡 */
+.t-chat-markdown-code__content,
+.t-chat-markdown-table {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
+
+/* 补充针对代码块内部文本的换行控制，防止其拒绝收缩 */
+.t-chat-markdown-code__text {
+  min-width: 100% !important;
+}
+
+/* 纠正 AI (左侧) 昵称时间对齐 */
+.ai-msg.left .t-chat-message__base {
+  padding-left: 0;
+}
+
+/* 纠正 User (右侧) 昵称时间对齐 */
+.user-msg.right .t-chat-message__base {
+  padding-right: 0;
+}
+
+.welcome-card {
+  text-align: center;
+  padding: 80rpx 40rpx;
+  background: white;
+  border-radius: 40rpx;
+  margin: 60rpx 20rpx;
+  box-shadow: 0 12rpx 40rpx rgba(0, 0, 0, 0.04);
+  transform: scaleY(-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.welcome-avatar {
+  margin-bottom: 32rpx;
+  border: 4rpx solid #ecf2fe;
+  border-radius: 50%;
+  box-shadow: 0 4rpx 16rpx rgba(0, 82, 217, 0.08);
+}
+
+.welcome-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16rpx;
+}
+
+.welcome-desc {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 40rpx;
+}
+
+.welcome-tips {
+  font-size: 22rpx;
+  color: #abb0b7;
+  padding: 8rpx 24rpx;
+  background: #f7f8fa;
+  border-radius: 100rpx;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

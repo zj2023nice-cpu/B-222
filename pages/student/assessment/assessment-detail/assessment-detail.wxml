@@ -1,0 +1,72 @@
+<view class="container">
+  <t-navbar title="测评详情" left-arrow placeholder />
+
+  <view class="header-info">
+    <view class="title">{{ assessmentTitle }}</view>
+  </view>
+
+  <view class="progress-box">
+    <t-progress
+      percentage="{{ progress }}"
+      label="{{ currentStep + 1 }} / {{ questions.length }}"
+      track-color="#f5f5f7"
+    />
+  </view>
+
+  <view class="quiz-container">
+    <view class="question-card" wx:if="{{ questions[currentStep] }}">
+      <text class="question-text"
+        >{{ currentStep + 1 }}. {{ questions[currentStep].title }}</text
+      >
+      <t-radio-group
+        t-class="radio-group"
+        value="{{ answers[currentStep] }}"
+        bind:change="onAnswerChange"
+      >
+        <t-radio
+          wx:for="{{ questions[currentStep].options }}"
+          wx:key="value"
+          value="{{ item.value }}"
+          label="{{ item.label }}"
+          align="right"
+          t-class="custom-radio {{
+            answers[currentStep] === item.value ? 'radio-active' : ''
+          }}"
+          icon="circle"
+        />
+      </t-radio-group>
+    </view>
+  </view>
+
+  <view class="submit-bar">
+    <t-button
+      wx:if="{{ currentStep > 0 }}"
+      theme="light"
+      block
+      t-class="btn-prev"
+      bindtap="prevStep"
+      >上一题</t-button
+    >
+    <t-button
+      wx:if="{{ currentStep < questions.length - 1 }}"
+      theme="primary"
+      block
+      t-class="btn-submit"
+      bindtap="nextStep"
+      disabled="{{ answers[currentStep] === undefined }}"
+      >下一题</t-button
+    >
+    <t-button
+      wx:else
+      theme="primary"
+      block
+      t-class="btn-submit"
+      bindtap="submitQuiz"
+      loading="{{ submitting }}"
+      disabled="{{ answers[currentStep] === undefined }}"
+      >完成提交</t-button
+    >
+  </view>
+
+  <t-toast id="t-toast" />
+</view>
