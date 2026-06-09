@@ -1,8 +1,8 @@
-import { SafePage } from "../../utils/middleware";
+import { SafePage } from "../../../utils/middleware";
 import Toast from "tdesign-miniprogram/toast/index";
-import appointmentService from "../../services/appointment";
-import assessmentService from "../../services/assessment";
-import { APPOINTMENT_STATUS_MAP } from "../../utils/constants";
+import appointmentService from "../../../services/appointment";
+import assessmentService from "../../../services/assessment";
+import { APPOINTMENT_STATUS_MAP } from "../../../utils/constants";
 
 const ROLE_CONFIG = {
   user: {
