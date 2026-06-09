@@ -14,6 +14,7 @@
     >
       <t-tab-panel label="记一记" value="record" />
       <t-tab-panel label="历史情绪" value="history" />
+      <t-tab-panel label="情绪周报" value="weekly" />
     </t-tabs>
   </t-sticky>
 
@@ -173,6 +174,48 @@
       bind:close="onCalendarToggle"
       title="选择查询日期"
     />
+  </view>
+
+  <!-- 3. 情绪周报内容区 -->
+  <view
+    wx:if="{{ activeTab === 'weekly' }}"
+    class="tab-content anim-fade-in record-panel-bg weekly-panel"
+  >
+    <view class="weekly-header">
+      <view class="weekly-range">{{ weeklyReport.weekRange }}</view>
+      <view class="weekly-stat">共 {{ weeklyReport.totalRecords }} 条记录</view>
+    </view>
+
+    <view class="weekly-trend-card">
+      <view class="trend-icon-wrap">
+        <t-icon name="chart" size="40rpx" color="#0052d9" />
+      </view>
+      <text class="trend-desc">{{ weeklyReport.trendDesc }}</text>
+    </view>
+
+    <view class="weekly-day-list">
+      <block wx:for="{{ weeklyReport.days }}" wx:key="dateKey">
+        <view class="weekly-day-item {{ item.count > 0 ? 'has-data' : '' }}">
+          <view class="day-info">
+            <view class="day-label">{{ item.dayLabel }}</view>
+            <view class="day-date">{{ item.dateLabel }}</view>
+          </view>
+          <view class="day-mood" wx:if="{{ item.count > 0 }}">
+            <view class="day-emoji">{{ item.emoji }}</view>
+            <view class="day-mood-label" style="color: {{ item.color }};">{{ item.label }}</view>
+          </view>
+          <view class="day-mood day-no-data" wx:else>
+            <text class="no-data-text">—</text>
+          </view>
+          <view class="day-count" wx:if="{{ item.count > 0 }}">
+            <text class="count-num">{{ item.count }}</text>
+            <text class="count-unit">次</text>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <t-divider content="周报结束" t-class="record-divider" dashed />
   </view>
 </view>
 
