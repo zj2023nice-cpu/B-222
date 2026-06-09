@@ -1,7 +1,14 @@
 import assessmentService from "../../../../services/assessment";
+import articleService from "../../../../services/article";
 
 import Toast from "tdesign-miniprogram/toast/index";
 import { SafePage } from "../../../../utils/middleware";
+
+const RESULT_CATEGORY_MAP = {
+  "表现良好": ["心理科普", "自我成长"],
+  "注意调节": ["情绪调节", "压力管理"],
+  "建议咨询": ["心理咨询", "情绪调节"],
+};
 
 SafePage({
   data: {
@@ -40,6 +47,11 @@ SafePage({
     ],
     answers: [],
     submitting: false,
+    showResult: false,
+    normalizedScore: 0,
+    resultLabel: "",
+    recommendedArticles: [],
+    articlesLoading: false,
   },
 
   onLoad(options) {
@@ -99,15 +111,13 @@ SafePage({
 
     try {
       const totalScore = answers.reduce((sum, val) => sum + val, 0);
-      // Map score to a 0-100 scale for consistency with existing UI
-      // Max score is 3 * 3 = 9.
       const normalizedScore = Math.floor(
         (totalScore / (questions.length * 3)) * 100,
       );
 
-      let result = "表现良好";
-      if (normalizedScore > 70) result = "建议咨询";
-      else if (normalizedScore > 40) result = "注意调节";
+      let resultLabel = "表现良好";
+      if (normalizedScore > 70) resultLabel = "建议咨询";
+      else if (normalizedScore > 40) resultLabel = "注意调节";
 
       const userInfo = wx.getStorageSync("userInfo") || {};
 
@@ -115,28 +125,18 @@ SafePage({
         assessmentId: id,
         assessmentTitle: assessmentTitle,
         score: normalizedScore,
-        result: result,
+        result: resultLabel,
         userName: userInfo.name || "匿名学生",
         userAvatar: userInfo.avatar || "",
       });
 
-      Toast({
-        context: this,
-        selector: "#t-toast",
-        message: "提交成功",
-        theme: "success",
-        direction: "column",
+      this.setData({
+        showResult: true,
+        normalizedScore,
+        resultLabel,
       });
 
-      setTimeout(() => {
-        // 提交后强制回到列表页，确保路径正确
-        wx.navigateBack({
-          delta: 1,
-          fail: () => {
-            wx.redirectTo({ url: "/pages/student/assessment/assessment" });
-          },
-        });
-      }, 800);
+      this.loadRecommendedArticles(resultLabel);
     } catch (err) {
       console.error("提交失败", err);
       Toast({
@@ -149,5 +149,35 @@ SafePage({
     } finally {
       this.setData({ submitting: false });
     }
+  },
+
+  async loadRecommendedArticles(resultLabel) {
+    this.setData({ articlesLoading: true });
+    try {
+      const categories = RESULT_CATEGORY_MAP[resultLabel] || [];
+      const result = await articleService.getRecommended(categories, 3);
+      this.setData({ recommendedArticles: result.data || [] });
+    } catch (err) {
+      console.error("获取推荐文章失败:", err);
+    } finally {
+      this.setData({ articlesLoading: false });
+    }
+  },
+
+  goToArticleDetail(e) {
+    const { id } = e.currentTarget.dataset;
+    if (!id) return;
+    wx.navigateTo({
+      url: `/pages/student/articles/article-detail/article-detail?id=${id}`,
+    });
+  },
+
+  goBack() {
+    wx.navigateBack({
+      delta: 1,
+      fail: () => {
+        wx.redirectTo({ url: "/pages/student/assessment/assessment" });
+      },
+    });
   },
 });

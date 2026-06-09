@@ -25,6 +25,8 @@ exports.main = async (event, context) => {
       return await getCollections(OPENID);
     case "get_home_data":
       return await getHomeData();
+    case "get_recommended":
+      return await getRecommended(data);
 
     // 管理端接口
     case "admin_get_list":
@@ -321,6 +323,26 @@ async function getCollections(openid) {
     });
 
     return { code: 0, data: finalCollections };
+  } catch (err) {
+    return { code: 500, msg: err.message };
+  }
+}
+
+async function getRecommended(data = {}) {
+  try {
+    const { categories = [], limit = 3 } = data;
+    let query = db.collection("articles");
+
+    if (categories.length > 0) {
+      query = query.where({
+        category: _.in(categories),
+      });
+    } else {
+      query = query.where({ _id: _.exists(true) });
+    }
+
+    const res = await query.orderBy("date", "desc").limit(limit).get();
+    return { code: 0, data: res.data };
   } catch (err) {
     return { code: 500, msg: err.message };
   }

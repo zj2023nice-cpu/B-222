@@ -23,6 +23,8 @@ const articleService = {
     call("toggle_collect", { articleId, article, isCollected }),
   getCollections: () => call("get_collections"),
   getHomeData: () => call("get_home_data"),
+  getRecommended: (categories, limit = 3) =>
+    call("get_recommended", { categories, limit }),
 
   // 管理端接口
   adminGetArticles: (params) => call("admin_get_list", params),
