@@ -1,5 +1,28 @@
 const tcb = require("@cloudbase/node-sdk");
 
+const CRISIS_KEYWORDS = [
+  "自杀", "想死", "不想活", "活不下去", "结束生命", "了结自己",
+  "跳楼", "割腕", "服毒", "吞药", "自残", "自伤", "伤害自己",
+  "跳河", "上吊", "割脉", "寻死", "一了百了", "生无可恋",
+  "没有活下去的意义", "死了算了", "活着没意思",
+];
+
+const CRISIS_HELP_GUIDE =
+  "\n\n🆘 如果你正在经历痛苦或有伤害自己的想法，请立即寻求帮助：\n" +
+  "• 全国24小时心理援助热线：400-161-9995\n" +
+  "• 北京心理危机研究与干预中心：010-82951332\n" +
+  "• 生命热线：400-821-1215\n" +
+  "• 你也可以联系学校心理咨询中心或辅导员，他们随时愿意帮助你。\n" +
+  "请记住，你并不孤单，有人愿意倾听和帮助。";
+
+function detectCrisis(messages) {
+  const userText = messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content)
+    .join(" ");
+  return CRISIS_KEYWORDS.some((kw) => userText.includes(kw));
+}
+
 exports.main = async (event, context) => {
   // 初始化云开发环境
   const app = tcb.init({ env: tcb.SYMBOL_CURRENT_ENV });
@@ -61,12 +84,15 @@ exports.main = async (event, context) => {
       }
     }
 
+    const isRisk = detectCrisis(messages);
+
     return {
       success: true,
-      reply: fullText,
+      reply: isRisk ? fullText + CRISIS_HELP_GUIDE : fullText,
       reasoning: "",
       openid: openId,
       sessionId: sessionId || null,
+      risk: isRisk,
     };
   } catch (err) {
     console.error("DeepSeek Call Error:", err);

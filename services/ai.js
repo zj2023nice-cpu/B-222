@@ -12,7 +12,10 @@ const aiService = {
         name: CLOUD_FUNCTION_NAME,
         data,
       });
-      return result;
+      return {
+        ...result,
+        risk: !!result.risk,
+      };
     } catch (err) {
       console.error("[AI Service Error][chat]:", err);
       throw err;
