@@ -117,7 +117,8 @@ Component({
       });
       this._persistCurrentSession();
 
-      const history = [userMsg, ...this.data.messages]
+      const history = this.data.messages
+        .filter((m) => m.status === "success" && m.content)
         .slice(0, 10)
         .reverse()
         .map((m) => ({
