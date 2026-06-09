@@ -2,9 +2,10 @@
   "usingComponents": {
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "t-toast": "tdesign-miniprogram/toast/toast",
-    "student-home": "/pages/student/tab-page/home/home",
-    "consultant-appointments": "/pages/consultant/tab-page/appointments/appointments",
-    "admin-user-manage": "/pages/admin/tab-page/user-manage/user-manage",
-    "t-loading": "tdesign-miniprogram/loading/loading"
+    "t-loading": "tdesign-miniprogram/loading/loading",
+    "t-icon": "tdesign-miniprogram/icon/icon",
+    "t-tag": "tdesign-miniprogram/tag/tag",
+    "t-button": "tdesign-miniprogram/button/button",
+    "list-view": "/components/list-view/list-view"
   }
 }
