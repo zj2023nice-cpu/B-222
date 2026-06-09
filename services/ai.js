@@ -1,20 +1,16 @@
 const CLOUD_FUNCTION_NAME = "deepseekChat";
+const STORAGE_KEY = "ai_chat_sessions";
 
-/**
- * AI 聊天服务
- */
 const aiService = {
-  /**
-   * 发送消息并获取回复
-   * @param {Array} messages 历史消息数组
-   */
-  async chat(messages) {
+  async chat(messages, sessionId) {
     try {
+      const data = { messages };
+      if (sessionId) {
+        data.sessionId = sessionId;
+      }
       const { result } = await wx.cloud.callFunction({
         name: CLOUD_FUNCTION_NAME,
-        data: {
-          messages,
-        },
+        data,
       });
       return result;
     } catch (err) {
@@ -23,9 +19,6 @@ const aiService = {
     }
   },
 
-  /**
-   * 获取 AI 助手用的头像 (从咨询师集合中获取)
-   */
   async getAiAvatar() {
     try {
       const db = wx.cloud.database();
@@ -38,6 +31,65 @@ const aiService = {
       console.error("[AI Service Error][getAiAvatar]:", err);
       return null;
     }
+  },
+
+  _loadAllSessions() {
+    try {
+      const raw = wx.getStorageSync(STORAGE_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error("[AI Service Error][_loadAllSessions]:", e);
+      return [];
+    }
+  },
+
+  _saveAllSessions(sessions) {
+    try {
+      wx.setStorageSync(STORAGE_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.error("[AI Service Error][_saveAllSessions]:", e);
+    }
+  },
+
+  getSessions() {
+    const sessions = this._loadAllSessions();
+    return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+
+  getSession(sessionId) {
+    const sessions = this._loadAllSessions();
+    return sessions.find((s) => s.sessionId === sessionId) || null;
+  },
+
+  saveSession(session) {
+    const sessions = this._loadAllSessions();
+    const idx = sessions.findIndex((s) => s.sessionId === session.sessionId);
+    session.updatedAt = Date.now();
+    if (idx > -1) {
+      sessions[idx] = session;
+    } else {
+      session.createdAt = session.createdAt || Date.now();
+      sessions.push(session);
+    }
+    this._saveAllSessions(sessions);
+  },
+
+  deleteSession(sessionId) {
+    let sessions = this._loadAllSessions();
+    sessions = sessions.filter((s) => s.sessionId !== sessionId);
+    this._saveAllSessions(sessions);
+  },
+
+  createSession() {
+    const session = {
+      sessionId: "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+      title: "",
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    return session;
   },
 };
 

@@ -6,7 +6,7 @@ exports.main = async (event, context) => {
   const ai = app.ai();
   const auth = app.auth();
 
-  const { messages } = event;
+  const { messages, sessionId } = event;
   const { openId } = auth.getUserInfo();
 
   if (!messages || !Array.isArray(messages)) {
@@ -64,8 +64,9 @@ exports.main = async (event, context) => {
     return {
       success: true,
       reply: fullText,
-      reasoning: "", // 不再返回思维链
+      reasoning: "",
       openid: openId,
+      sessionId: sessionId || null,
     };
   } catch (err) {
     console.error("DeepSeek Call Error:", err);
