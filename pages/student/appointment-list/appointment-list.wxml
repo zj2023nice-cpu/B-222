@@ -20,14 +20,16 @@
           label="{{ item.label }}"
           value="{{ item.value }}"
           badge-props="{{
-            item.value === 'booked'
+          item.value === 'waitlist'
+            ? { count: waitlistCount }
+            : item.value === 'booked'
               ? { count: pendingCount }
               : item.value === 'confirmed'
                 ? { count: confirmedCount }
                 : item.value === 'rejected'
                   ? { count: rejectedCount }
                   : null
-          }}"
+        }}"
         />
       </t-tabs>
     </view>

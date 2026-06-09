@@ -25,9 +25,7 @@ const appointmentService = {
   book: (consultantData) => call("book", consultantData),
   cancel: (appointmentId) => call("cancel", { appointmentId }),
   getMyList: () => call("get_my_list"),
-  // 咨询师端：获取待审核/全部预约
   getConsultantAppts: (status) => call("get_consultant_appts", { status }),
-  // 咨询师端：审核预约
   updateStatus: (appointmentId, status) =>
     call("update_status", { appointmentId, status }),
   delete: (appointmentId, role) => call("delete", { appointmentId, role }),
@@ -36,6 +34,9 @@ const appointmentService = {
   adminGetTrend: () => call("admin_get_trend"),
   adminGetList: (params) => call("admin_get_list", params),
   markAsRead: (appointmentIds) => call("mark_read", { appointmentIds }),
+  joinWaitlist: (data) => call("join_waitlist", data),
+  cancelWaitlist: (waitlistId) => call("cancel_waitlist", { waitlistId }),
+  getMyWaitlist: (params) => call("get_my_waitlist", params),
 };
 
 export default appointmentService;

@@ -91,6 +91,11 @@
   color: #e34d59;
 }
 
+.value.waitlist-queue {
+  color: #ed7b2f;
+  font-weight: 600;
+}
+
 .cancelled-info {
   margin-top: 8rpx;
 }

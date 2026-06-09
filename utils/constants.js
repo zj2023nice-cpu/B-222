@@ -27,6 +27,7 @@ export const DIALOG_CONFIGS = {
 
 export const APPOINTMENT_STATUS_LIST = [
   { label: "全部", value: "" },
+  { label: "候补中", value: "waitlist" },
   { label: "待处理", value: "booked" },
   { label: "待咨询", value: "confirmed" },
   { label: "已完成", value: "completed" },
@@ -35,6 +36,7 @@ export const APPOINTMENT_STATUS_LIST = [
 ];
 
 export const APPOINTMENT_STATUS_MAP = {
+  waitlist: { label: "候补中", theme: "warning" },
   booked: { label: "待处理", theme: "warning" },
   confirmed: { label: "待咨询", theme: "primary" },
   completed: { label: "已完成", theme: "success" },

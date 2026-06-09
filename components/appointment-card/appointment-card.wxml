@@ -52,32 +52,43 @@
 
       <t-tag
         theme="{{
-          role === 'student' && item.status === 'completed' && !item.feedback
+          item.status === 'waitlist'
             ? 'warning'
-            : (statusMap &&
-                item.status &&
-                statusMap[item.status] &&
-                statusMap[item.status].theme) ||
-              'default'
+            : role === 'student' && item.status === 'completed' && !item.feedback
+              ? 'warning'
+              : (statusMap &&
+                  item.status &&
+                  statusMap[item.status] &&
+                  statusMap[item.status].theme) ||
+                'default'
         }}"
         variant="light"
       >
         {{
-          role === "student" && item.status === "completed" && !item.feedback
-            ? "待评估"
-            : item.status === "completed" && item.feedback
-              ? "已完成"
-              : (statusMap &&
-                  item.status &&
-                  statusMap[item.status] &&
-                  statusMap[item.status].label) ||
-                ""
+          item.status === "waitlist"
+            ? item.waitlistStatus === "notified"
+              ? "候补-有空位"
+              : "候补中"
+            : role === "student" && item.status === "completed" && !item.feedback
+              ? "待评估"
+              : item.status === "completed" && item.feedback
+                ? "已完成"
+                : (statusMap &&
+                    item.status &&
+                    statusMap[item.status] &&
+                    statusMap[item.status].label) ||
+                  ""
         }}
       </t-tag>
     </view>
 
     <!-- 所有的详情字段展示区 (双端对齐) -->
     <view class="card-body">
+      <view class="info-item" wx:if="{{ item.status === 'waitlist' && item.queueNumber }}">
+        <t-icon name="sort" size="32rpx" color="#ed7b2f" />
+        <text class="label">候补排队：</text>
+        <text class="value waitlist-queue">第{{ item.queueNumber }}位</text>
+      </view>
       <view class="info-item">
         <t-icon name="calendar" size="32rpx" color="#666" />
         <text class="label">咨询日期：</text>
@@ -144,8 +155,28 @@
     <!-- Footer Actions (保持之前的按钮逻辑) -->
     <view class="card-footer" wx:if="{{ showFooter }}">
       <block wx:if="{{ role === 'student' }}">
+        <block wx:if="{{ item.status === 'waitlist' }}">
+          <t-button
+            theme="danger"
+            variant="outline"
+            size="small"
+            shape="round"
+            bindtap="onAction"
+            data-action="cancelWaitlist"
+            class="footer-btn"
+          >退出候补</t-button>
+          <t-button
+            wx:if="{{ item.waitlistStatus === 'notified' }}"
+            theme="primary"
+            size="small"
+            shape="round"
+            bindtap="onAction"
+            data-action="gotoBook"
+            class="footer-btn"
+          >去预约</t-button>
+        </block>
         <block
-          wx:if="{{ item.status === 'booked' || item.status === 'confirmed' }}"
+          wx:elif="{{ item.status === 'booked' || item.status === 'confirmed' }}"
         >
           <t-button
             theme="danger"

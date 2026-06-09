@@ -13,18 +13,15 @@ Page({
       { width: "100%", height: "22rpx", margin: "0 0 2rpx 0" },
     ],
 
-    // 预约逻辑相关
     showSchedulePopup: false,
     selectedConsultant: null,
     selectedConsultantIndex: -1,
 
-    // 动态可预约日期
     availableDates: [],
     selectedDateIndex: 0,
     timeSlots: [],
     selectedTimeIndex: -1,
 
-    // 确认与取消弹窗
     showBookDialog: false,
     showCancelDialog: false,
     isPageLoading: false,
@@ -33,6 +30,10 @@ Page({
     allConsultants: [],
     keyword: "",
     navbarHeight: 0,
+
+    showWaitlistDialog: false,
+    waitlistDateStr: "",
+    showCancelWaitlistDialog: false,
   },
 
   // 获取从当天开始的未来 N 天日期
@@ -102,9 +103,18 @@ Page({
       const { data: allConsultants, hasActiveAppt } =
         await appointmentService.getConsultants(dates);
 
+      const enrichedConsultants = allConsultants.map((c) => ({
+        ...c,
+        hasWaitlist:
+          c.schedule &&
+          c.schedule.some(
+            (s) => s.waitlistStatus === "waiting" || s.waitlistStatus === "notified",
+          ),
+      }));
+
       this.setData(
         {
-          allConsultants,
+          allConsultants: enrichedConsultants,
           hasActiveAppt,
         },
         () => {
@@ -166,7 +176,6 @@ Page({
     const { index } = e.currentTarget.dataset;
     const consultant = this.data.consultants[index];
 
-    // 如果已经预约，进入取消预约弹窗
     if (consultant.isBooked) {
       this.setData({
         selectedConsultant: consultant,
@@ -175,7 +184,6 @@ Page({
       });
       return;
     }
-    // 校验：每位用户只能有一个进行中的预约
     if (this.data.hasActiveAppt) {
       Toast({
         context: this,
@@ -188,33 +196,32 @@ Page({
       return;
     }
 
-    // 未预约，进入正常预约流程
-    // 计算每个日期的饱和状态
     const availableDates = this.data.availableDates.map((date, dIndex) => {
-      // 获取该咨询师在该日期的所有时间槽
       const dailySchedule = consultant.schedule.find(
         (s) => s.dateStr === date.dateStr,
       );
-      // 如果找不到排班（异常情况）或者所有时间槽都满了
       const isFull = dailySchedule
         ? dailySchedule.slots.every((slot) => slot.isFull)
         : true;
-      return { ...date, isFull };
+      const waitlistStatus = dailySchedule ? dailySchedule.waitlistStatus : "";
+      const waitlistId = dailySchedule ? dailySchedule.waitlistId : "";
+      const queueNumber = dailySchedule ? dailySchedule.queueNumber : 0;
+      return { ...date, isFull, waitlistStatus, waitlistId, queueNumber };
     });
 
-    // 找到第一个未满的日期的索引，作为默认选中
     let defaultDateIndex = availableDates.findIndex((d) => !d.isFull);
-    // 如果全部满了（极少见），就默认选第一个，虽然不可点
     if (defaultDateIndex === -1) defaultDateIndex = 0;
 
     this.setData({
       selectedConsultant: consultant,
       selectedConsultantIndex: index,
       showSchedulePopup: true,
-      availableDates: availableDates, // 更新日期状态
+      availableDates: availableDates,
       selectedDateIndex: defaultDateIndex,
       selectedTimeIndex: -1,
-      timeSlots: consultant.schedule[defaultDateIndex].slots,
+      timeSlots: consultant.schedule[defaultDateIndex]
+        ? consultant.schedule[defaultDateIndex].slots
+        : [],
     });
   },
 
@@ -225,10 +232,11 @@ Page({
   // 切换日期
   onSelectDate(e) {
     const { index } = e.currentTarget.dataset;
-    // 如果该日期已满，禁止点击
-    if (this.data.availableDates[index].isFull) return;
+    const selectedDate = this.data.availableDates[index];
+    if (selectedDate.isFull && !selectedDate.waitlistStatus) return;
 
-    const slots = this.data.selectedConsultant.schedule[index].slots || [];
+    const scheduleItem = this.data.selectedConsultant.schedule[index];
+    const slots = scheduleItem ? scheduleItem.slots || [] : [];
     this.setData({
       selectedDateIndex: index,
       selectedTimeIndex: -1,
@@ -330,7 +338,6 @@ Page({
     try {
       await appointmentService.cancel(consultant.bookedId);
 
-      // 更新本地状态
       const updateData = {};
       const prefix = `consultants[${index}]`;
       updateData[`${prefix}.isBooked`] = false;
@@ -339,7 +346,7 @@ Page({
       updateData[`${prefix}.bookedTime`] = "";
 
       this.setData(updateData);
-      this.fetchConsultants(true); // 静默刷新，同步排班状态
+      this.fetchConsultants(true);
 
       Toast({
         context: this,
@@ -358,6 +365,99 @@ Page({
         direction: "column",
       });
     } finally {
+    }
+  },
+
+  onJoinWaitlist() {
+    const selectedDate = this.data.availableDates[this.data.selectedDateIndex];
+    if (!selectedDate || !selectedDate.isFull) return;
+    if (selectedDate.waitlistStatus) return;
+
+    this.setData({
+      showSchedulePopup: false,
+      showWaitlistDialog: true,
+      waitlistDateStr: selectedDate.dateStr,
+    });
+  },
+
+  closeWaitlistDialog() {
+    this.setData({ showWaitlistDialog: false });
+  },
+
+  async confirmJoinWaitlist() {
+    const consultant = this.data.selectedConsultant;
+    const dateStr = this.data.waitlistDateStr;
+
+    this.setData({ showWaitlistDialog: false });
+
+    try {
+      const { data } = await appointmentService.joinWaitlist({
+        consultantId: consultant._id,
+        consultantName: consultant.name,
+        consultantAvatar: consultant.avatar,
+        consultantTitle: consultant.title,
+        dateStr,
+      });
+
+      this.fetchConsultants(true);
+
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: `候补登记成功，当前排队第${data.queueNumber}位`,
+        theme: "success",
+        direction: "column",
+      });
+    } catch (err) {
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: err.message || "候补登记失败",
+        theme: "error",
+        direction: "column",
+      });
+    }
+  },
+
+  onCancelWaitlist() {
+    const selectedDate = this.data.availableDates[this.data.selectedDateIndex];
+    if (!selectedDate || !selectedDate.waitlistId) return;
+
+    this.setData({
+      showSchedulePopup: false,
+      showCancelWaitlistDialog: true,
+    });
+  },
+
+  closeCancelWaitlistDialog() {
+    this.setData({ showCancelWaitlistDialog: false });
+  },
+
+  async confirmCancelWaitlist() {
+    const selectedDate = this.data.availableDates[this.data.selectedDateIndex];
+
+    this.setData({ showCancelWaitlistDialog: false });
+
+    try {
+      await appointmentService.cancelWaitlist(selectedDate.waitlistId);
+
+      this.fetchConsultants(true);
+
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "已退出候补",
+        theme: "success",
+        direction: "column",
+      });
+    } catch (err) {
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: err.message || "操作失败",
+        theme: "error",
+        direction: "column",
+      });
     }
   },
 });

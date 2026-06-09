@@ -29,6 +29,7 @@ Page({
     pendingCount: 0,
     confirmedCount: 0,
     rejectedCount: 0,
+    waitlistCount: 0,
     stickyProps: {
       offsetTop: 0,
     },
@@ -63,12 +64,37 @@ Page({
         (a) => a.status === "rejected" && !a.studentRead,
       ).length;
 
+      let waitlistItems = [];
+      try {
+        const { data: wlData } = await appointmentService.getMyWaitlist({});
+        waitlistItems = (wlData || []).map((w) => ({
+          _id: w._id,
+          _openid: w._openid,
+          consultantId: w.consultantId,
+          consultantName: w.consultantName,
+          consultantAvatar: w.consultantAvatar || "",
+          consultantTitle: w.consultantTitle || "",
+          dateStr: w.dateStr,
+          time: "候补排队中",
+          status: "waitlist",
+          waitlistStatus: w.status,
+          queueNumber: w.queueNumber,
+          createTime: w.createTime,
+          createTimeDisplay: w.createTime ? this.formatDate(w.createTime) : "",
+        }));
+      } catch (e) {
+        console.error("获取候补列表失败", e);
+      }
+
+      const waitlistCount = waitlistItems.length;
+
       this.setData(
         {
-          allAppointments,
+          allAppointments: [...waitlistItems, ...allAppointments],
           pendingCount,
           confirmedCount,
           rejectedCount,
+          waitlistCount,
         },
         () => {
           this.filterList();
@@ -85,6 +111,17 @@ Page({
         direction: "column",
       });
     }
+  },
+
+  formatDate(date) {
+    if (!date) return "";
+    const d = new Date(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${y}-${m}-${day} ${h}:${min}`;
   },
 
   filterList() {
@@ -172,6 +209,39 @@ Page({
       await this.handleCancel(item._id);
     } else if (action === "delete") {
       await this.handleDelete(item._id);
+    } else if (action === "cancelWaitlist") {
+      await this.handleCancelWaitlist(item._id);
+    }
+  },
+
+  async handleCancelWaitlist(waitlistId) {
+    try {
+      await appointmentService.cancelWaitlist(waitlistId);
+
+      const allAppointments = this.data.allAppointments.filter(
+        (a) => a._id !== waitlistId,
+      );
+
+      this.setData({ allAppointments }, () => {
+        this.filterList();
+      });
+
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "已退出候补",
+        theme: "success",
+        direction: "column",
+      });
+    } catch (err) {
+      console.error("退出候补失败", err);
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "操作失败",
+        theme: "error",
+        direction: "column",
+      });
     }
   },
 

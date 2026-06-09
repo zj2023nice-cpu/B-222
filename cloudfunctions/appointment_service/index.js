@@ -39,6 +39,12 @@ exports.main = async (event, context) => {
       return await adminGetList(OPENID, data);
     case "mark_read":
       return await markRead(OPENID, data);
+    case "join_waitlist":
+      return await joinWaitlist(OPENID, data);
+    case "cancel_waitlist":
+      return await cancelWaitlist(OPENID, data);
+    case "get_my_waitlist":
+      return await getMyWaitlist(OPENID, data);
     default:
       return { code: -1, msg: "Unknown action" };
   }
@@ -191,6 +197,15 @@ async function getConsultants(openid, data) {
       .get();
     const allBookedData = allBookedRes.data;
 
+    const myWaitlistRes = await db
+      .collection("waitlist")
+      .where({
+        _openid: openid,
+        status: _.in(["waiting", "notified"]),
+      })
+      .get();
+    const myWaitlistData = myWaitlistRes.data;
+
     const timeTemplates = [
       "08:00-09:00",
       "09:00-10:00",
@@ -206,6 +221,10 @@ async function getConsultants(openid, data) {
         (a) => a.consultantId === item._id && a._openid === openid,
       );
 
+      const myWaitlist = myWaitlistData.filter(
+        (w) => w.consultantId === item._id,
+      );
+
       const realSchedule = availableDates.map((d) => {
         const slots = timeTemplates.map((t) => {
           const isTaken = allBookedData.some(
@@ -216,7 +235,20 @@ async function getConsultants(openid, data) {
           );
           return { time: t, isFull: isTaken };
         });
-        return { dateStr: d.dateStr, slots };
+        const isFull = slots.every((s) => s.isFull);
+
+        const waitlistEntry = myWaitlist.find(
+          (w) => w.dateStr === d.dateStr,
+        );
+
+        return {
+          dateStr: d.dateStr,
+          slots,
+          isFull,
+          waitlistStatus: waitlistEntry ? waitlistEntry.status : "",
+          waitlistId: waitlistEntry ? waitlistEntry._id : "",
+          queueNumber: waitlistEntry ? waitlistEntry.queueNumber : 0,
+        };
       });
 
       return {
@@ -321,6 +353,12 @@ async function book(openid, data) {
 async function cancel(openid, data) {
   try {
     const { appointmentId } = data;
+    const apptRes = await db
+      .collection("appointments")
+      .doc(appointmentId)
+      .get();
+    const appt = apptRes.data;
+
     await db
       .collection("appointments")
       .doc(appointmentId)
@@ -330,6 +368,11 @@ async function cancel(openid, data) {
           cancelTime: db.serverDate(),
         },
       });
+
+    if (appt && appt.consultantId && appt.dateStr) {
+      await tryNotifyWaitlist(appt.consultantId, appt.dateStr);
+    }
+
     return { code: 0 };
   } catch (err) {
     return { code: 500, msg: err.message };
@@ -715,5 +758,174 @@ async function markRead(openid, data) {
     return { code: 0 };
   } catch (err) {
     return { code: 500, msg: err.message };
+  }
+}
+
+async function joinWaitlist(openid, data) {
+  try {
+    const { consultantId, consultantName, consultantAvatar, consultantTitle, dateStr } = data;
+
+    const existingRes = await db
+      .collection("waitlist")
+      .where({
+        _openid: openid,
+        consultantId,
+        dateStr,
+        status: _.in(["waiting", "notified"]),
+      })
+      .count();
+
+    if (existingRes.total > 0) {
+      return { code: 400, msg: "您已在该日期的候补队列中" };
+    }
+
+    const activeApptRes = await db
+      .collection("appointments")
+      .where({
+        _openid: openid,
+        status: _.in(["booked", "confirmed"]),
+        deletedByStudent: _.neq(true),
+      })
+      .count();
+
+    if (activeApptRes.total > 0) {
+      return { code: 400, msg: "您有进行中的预约，需完成或取消后才可候补" };
+    }
+
+    const queueCountRes = await db
+      .collection("waitlist")
+      .where({
+        consultantId,
+        dateStr,
+        status: "waiting",
+      })
+      .count();
+
+    const res = await db.collection("waitlist").add({
+      data: {
+        _openid: openid,
+        consultantId,
+        consultantName,
+        consultantAvatar,
+        consultantTitle,
+        dateStr,
+        status: "waiting",
+        queueNumber: queueCountRes.total + 1,
+        createTime: db.serverDate(),
+      },
+    });
+
+    return { code: 0, data: { _id: res._id, queueNumber: queueCountRes.total + 1 } };
+  } catch (err) {
+    return { code: 500, msg: err.message };
+  }
+}
+
+async function cancelWaitlist(openid, data) {
+  try {
+    const { waitlistId } = data;
+    const wlRes = await db.collection("waitlist").doc(waitlistId).get();
+    if (!wlRes.data) {
+      return { code: 404, msg: "候补记录不存在" };
+    }
+    if (wlRes.data._openid !== openid) {
+      return { code: 403, msg: "无权操作此记录" };
+    }
+    await db
+      .collection("waitlist")
+      .doc(waitlistId)
+      .update({
+        data: {
+          status: "cancelled",
+          cancelTime: db.serverDate(),
+        },
+      });
+    return { code: 0 };
+  } catch (err) {
+    return { code: 500, msg: err.message };
+  }
+}
+
+async function getMyWaitlist(openid, data) {
+  try {
+    const { consultantIds, dateStrs } = data || {};
+    const query = {
+      _openid: openid,
+      status: _.in(["waiting", "notified"]),
+    };
+    if (consultantIds && consultantIds.length > 0) {
+      query.consultantId = _.in(consultantIds);
+    }
+    if (dateStrs && dateStrs.length > 0) {
+      query.dateStr = _.in(dateStrs);
+    }
+
+    const res = await db
+      .collection("waitlist")
+      .where(query)
+      .orderBy("createTime", "desc")
+      .get();
+
+    return { code: 0, data: res.data };
+  } catch (err) {
+    return { code: 500, msg: err.message };
+  }
+}
+
+async function tryNotifyWaitlist(consultantId, dateStr) {
+  try {
+    const bookedRes = await db
+      .collection("appointments")
+      .where({
+        consultantId,
+        dateStr,
+        status: _.in(["booked", "confirmed"]),
+        deletedByStudent: _.neq(true),
+      })
+      .count();
+
+    const timeTemplates = [
+      "08:00-09:00",
+      "09:00-10:00",
+      "10:00-11:00",
+      "11:00-12:00",
+      "14:00-15:00",
+      "15:00-16:00",
+      "16:00-17:00",
+      "17:00-18:00",
+    ];
+    const totalSlots = timeTemplates.length;
+
+    if (bookedRes.total >= totalSlots) {
+      return;
+    }
+
+    const waitingRes = await db
+      .collection("waitlist")
+      .where({
+        consultantId,
+        dateStr,
+        status: "waiting",
+      })
+      .orderBy("queueNumber", "asc")
+      .limit(1)
+      .get();
+
+    if (waitingRes.data.length === 0) {
+      return;
+    }
+
+    const firstInQueue = waitingRes.data[0];
+    await db
+      .collection("waitlist")
+      .doc(firstInQueue._id)
+      .update({
+        data: {
+          status: "notified",
+          notifyTime: db.serverDate(),
+        },
+      });
+  } catch (err) {
+    console.error("tryNotifyWaitlist error:", err);
   }
 }

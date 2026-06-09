@@ -70,6 +70,19 @@ Component({
           confirmText: "确定取消",
           cancelText: "保留预约",
         });
+      } else if (action === "cancelWaitlist") {
+        this.setData({
+          showConfirmDialog: true,
+          currentAction: "cancelWaitlist",
+          confirmTitle: "退出候补",
+          confirmContent: "确定要退出候补排队吗？退出后需重新排队。",
+          confirmText: "确定退出",
+          cancelText: "保留候补",
+        });
+      } else if (action === "gotoBook") {
+        wx.navigateTo({
+          url: "/pages/student/appointment/appointment",
+        });
       } else if (action === "delete") {
         this.setData({
           showConfirmDialog: true,
