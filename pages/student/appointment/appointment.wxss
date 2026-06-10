@@ -35,6 +35,12 @@
   box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
   display: flex;
   align-items: flex-start;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.consultant-card:active {
+  background: #f5f5f5;
 }
 
 .avatar {
@@ -356,4 +362,144 @@
 
 .custom-toast {
   text-align: center;
+}
+
+.detail-panel {
+  width: 75vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 40rpx 32rpx 24rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.detail-header-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+
+.detail-header-text {
+  margin-left: 20rpx;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detail-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-title {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
+.detail-body {
+  flex: 1;
+  height: 0;
+  padding: 24rpx 32rpx;
+}
+
+.detail-section {
+  margin-bottom: 36rpx;
+}
+
+.detail-section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16rpx;
+  position: relative;
+  padding-left: 16rpx;
+}
+
+.detail-section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4rpx;
+  width: 6rpx;
+  height: 24rpx;
+  background: #0052d9;
+  border-radius: 3rpx;
+}
+
+.detail-expertise {
+  font-size: 26rpx;
+  color: #444;
+  line-height: 1.6;
+  background: #f5f7fa;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+}
+
+.detail-intro {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.8;
+}
+
+.detail-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.detail-date-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+}
+
+.detail-date-item.available {
+  background: #f0f7ff;
+}
+
+.detail-date-item.full {
+  background: #f5f5f5;
+}
+
+.detail-date-str {
+  color: #333;
+  font-weight: 500;
+}
+
+.detail-date-status {
+  color: #999;
+  font-size: 24rpx;
+}
+
+.detail-date-status.available {
+  color: #0052d9;
+  font-weight: 500;
+}
+
+.detail-full-notice {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: #fff8f5;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  color: #ed7b2f;
+  margin-bottom: 24rpx;
 }

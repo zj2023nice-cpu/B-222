@@ -34,7 +34,7 @@
     customStyle="flex: 1"
   >
     <view class="consultant-list">
-      <view class="consultant-card" wx:for="{{ consultants }}" wx:key="_id">
+      <view class="consultant-card" wx:for="{{ consultants }}" wx:key="_id" bindtap="onCardTap" data-index="{{ index }}">
         <t-avatar
           image="{{ item.avatar || '' }}"
           icon="user"
@@ -76,7 +76,7 @@
                 size="extra-small"
                 shape="round"
                 variant="{{ item.isBooked ? 'light' : 'base' }}"
-                bindtap="book"
+                catchtap="book"
                 data-index="{{ index }}"
                 class="book-btn-mini"
               >
@@ -97,6 +97,62 @@
     </view>
   </list-view>
 </view>
+
+<t-popup
+  visible="{{ showDetailPanel }}"
+  placement="right"
+  bind:visible-change="onCloseDetailPanel"
+>
+  <view class="detail-panel">
+    <view class="detail-header">
+      <view class="detail-header-info">
+        <t-avatar
+          image="{{ detailConsultant.avatar || '' }}"
+          icon="user"
+          shape="circle"
+          size="96rpx"
+        />
+        <view class="detail-header-text">
+          <text class="detail-name">{{ detailConsultant.name || '未知' }}</text>
+          <text class="detail-title">{{ detailConsultant.title || '' }}</text>
+        </view>
+      </view>
+      <t-icon name="close" size="40rpx" color="#999" bindtap="onCloseDetailPanel" />
+    </view>
+
+    <scroll-view scroll-y class="detail-body">
+      <view class="detail-section" wx:if="{{ detailConsultant.expertise }}">
+        <view class="detail-section-title">擅长方向</view>
+        <view class="detail-expertise">{{ detailConsultant.expertise }}</view>
+      </view>
+
+      <view class="detail-section" wx:if="{{ detailConsultant.introduction }}">
+        <view class="detail-section-title">个人简介</view>
+        <view class="detail-intro">{{ detailConsultant.introduction }}</view>
+      </view>
+
+      <view class="detail-section" wx:if="{{ detailConsultant._availableSummary && detailConsultant._availableSummary.length > 0 }}">
+        <view class="detail-section-title">可预约日期</view>
+        <view class="detail-dates">
+          <view
+            class="detail-date-item {{ item.isFull ? 'full' : 'available' }}"
+            wx:for="{{ detailConsultant._availableSummary }}"
+            wx:key="dateStr"
+          >
+            <text class="detail-date-str">{{ item.dateStr }}</text>
+            <text class="detail-date-status" wx:if="{{ item.isFull }}">已约满</text>
+            <text class="detail-date-status available" wx:else>余{{ item.availableSlots }}位</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="detail-full-notice" wx:if="{{ detailConsultant._allFull }}">
+        <t-icon name="info-circle" size="28rpx" color="#ed7b2f" />
+        <text>该咨询师近期已全部约满，可登记候补等待空位</text>
+      </view>
+    </scroll-view>
+  </view>
+</t-popup>
 
 <t-popup
   visible="{{ showSchedulePopup }}"

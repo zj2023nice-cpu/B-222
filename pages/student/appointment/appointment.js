@@ -34,6 +34,9 @@ Page({
     showWaitlistDialog: false,
     waitlistDateStr: "",
     showCancelWaitlistDialog: false,
+
+    showDetailPanel: false,
+    detailConsultant: null,
   },
 
   // 获取从当天开始的未来 N 天日期
@@ -169,6 +172,41 @@ Page({
     this.setData({
       [`consultants[${index}].avatar`]: "",
     });
+  },
+
+  onCardTap(e) {
+    const { index } = e.currentTarget.dataset;
+    const consultant = this.data.consultants[index];
+    if (!consultant) return;
+
+    const schedule = consultant.schedule || [];
+    const fullDateCount = schedule.filter((s) => s.isFull).length;
+    const allFull = schedule.length > 0 && fullDateCount === schedule.length;
+
+    const availableSummary = schedule.map((s) => {
+      const availableSlots = (s.slots || []).filter((slot) => !slot.isFull).length;
+      return {
+        dateStr: s.dateStr || "",
+        isFull: s.isFull,
+        availableSlots,
+        totalSlots: (s.slots || []).length,
+      };
+    });
+
+    this.setData({
+      showDetailPanel: true,
+      detailConsultant: {
+        ...consultant,
+        _availableSummary: availableSummary,
+        _allFull: allFull,
+        _fullDateCount: fullDateCount,
+        _totalDateCount: schedule.length,
+      },
+    });
+  },
+
+  onCloseDetailPanel() {
+    this.setData({ showDetailPanel: false });
   },
 
   // 点击预约按钮：打开排班选择或取消预约
