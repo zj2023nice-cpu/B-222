@@ -15,6 +15,7 @@ const aiService = {
       return {
         ...result,
         risk: !!result.risk,
+        crisisGuide: result.crisisGuide || null,
       };
     } catch (err) {
       console.error("[AI Service Error][chat]:", err);

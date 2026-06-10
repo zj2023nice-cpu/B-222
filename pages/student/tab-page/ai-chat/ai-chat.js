@@ -143,7 +143,10 @@ Component({
           this._persistCurrentSession();
           return;
         }
-        this.updateAiMsg(aiTempId, result.reply, "success");
+        this.updateAiMsg(aiTempId, result.reply, "success", {
+          risk: result.risk || false,
+          crisisGuide: result.crisisGuide || null,
+        });
         this._persistCurrentSession();
       } catch (err) {
         if (this.activeRequestId !== currentRequestId) return;
@@ -174,10 +177,15 @@ Component({
       this._persistCurrentSession();
     },
 
-    updateAiMsg(tempId, content, status) {
+    updateAiMsg(tempId, content, status, extra) {
       const newMessages = this.data.messages.map((m) => {
         if (m.id === tempId) {
-          return { ...m, content: content || "...", status };
+          return {
+            ...m,
+            content: content || "...",
+            status,
+            ...(extra || {}),
+          };
         }
         return m;
       });
