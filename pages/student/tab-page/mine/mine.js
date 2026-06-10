@@ -30,10 +30,23 @@ Component({
       const userInfo = wx.getStorageSync("userInfo");
       this.setData({ userInfo });
       this.initData();
+      this.loadTimeline();
     },
   },
 
   methods: {
+    loadTimeline() {
+      const timelineComp = this.selectComponent("#growthTimeline");
+      if (timelineComp && typeof timelineComp.loadTimeline === "function") {
+        timelineComp.loadTimeline();
+      }
+    },
+
+    onTimelineItemTap(e) {
+      const { item } = e.detail || {};
+      console.log("[Mine] 时间线节点点击:", item);
+    },
+
     async initData() {
       try {
         const { data } = await userService.getStats();

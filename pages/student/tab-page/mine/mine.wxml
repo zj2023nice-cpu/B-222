@@ -53,6 +53,8 @@
     </view>
   </view>
 
+  <growth-timeline id="growthTimeline" bind:itemtap="onTimelineItemTap" />
+
   <view class="menu-section">
     <t-cell-group theme="card">
       <t-cell
