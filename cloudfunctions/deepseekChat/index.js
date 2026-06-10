@@ -1,8 +1,7 @@
 const tcb = require("@cloudbase/node-sdk");
 
 const CRISIS_EXPLICIT_FIXED = [
-  "一了百了", "生无可恋", "没有活下去的意义",
-  "让我死", "不如去死", "真想死", "就想死", "就是想死",
+  "一了百了", "没有活下去的意义",
 ];
 
 const CRISIS_EXPLICIT_NEGATABLE = [
@@ -24,6 +23,13 @@ const CRISIS_ACTION_KEYWORDS = [
 const NEGATION_WORDS = [
   "不会", "不想", "不要", "没想", "没有想", "不可能",
   "不至于", "没打算", "从未", "不曾",
+  "并不", "并未", "绝非", "毫无", "从不", "永不",
+  "并不会", "并不想", "并没有",
+  "也不会", "也不想", "绝不会", "绝不想",
+  "绝对不会", "绝对不想", "根本不会", "根本不想",
+  "完全不会", "完全不想", "从来不会", "从来不想",
+  "肯定不会", "肯定不想", "真的不会", "真的不想",
+  "从未想过", "不曾想过", "一点也不", "丝毫不会",
 ];
 
 const NEGATION_CHARS = ["不", "没", "别", "勿"];
@@ -87,10 +93,10 @@ function detectCrisis(messages) {
   });
   if (hitFixed) return true;
 
-  var hitNegatable = _anyUnnegatedMatch(userText, CRISIS_EXPLICIT_NEGATABLE, 3);
+  var hitNegatable = _anyUnnegatedMatch(userText, CRISIS_EXPLICIT_NEGATABLE, 4);
   if (hitNegatable) return true;
 
-  var hasImplicit = _anyUnnegatedMatch(userText, CRISIS_IMPLICIT_INTENT, 3);
+  var hasImplicit = _anyUnnegatedMatch(userText, CRISIS_IMPLICIT_INTENT, 4);
   if (hasImplicit) return true;
 
   var hasAction = _anyUnnegatedMatch(userText, CRISIS_ACTION_KEYWORDS, 4);
