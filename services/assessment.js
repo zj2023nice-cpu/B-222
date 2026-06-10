@@ -38,8 +38,10 @@ const assessmentService = {
     return articleService.getRecommendedByAssessment({
       score,
       resultLabel: config.label,
-      categories: config.categories,
-      tags: config.tags,
+      primaryCategories: config.primaryCategories,
+      secondaryCategories: config.secondaryCategories,
+      fallbackCategories: config.fallbackCategories,
+      keywords: config.keywords,
       limit,
     });
   },

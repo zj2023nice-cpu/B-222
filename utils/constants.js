@@ -44,6 +44,14 @@ export const APPOINTMENT_STATUS_MAP = {
   rejected: { label: "已拒绝", theme: "danger" },
 };
 
+export const ARTICLE_CATEGORIES = [
+  "心理科普",
+  "情绪疗愈",
+  "人际交流",
+  "专业视角",
+  "自我成长",
+];
+
 export const ASSESSMENT_SCORE_RANGES = [
   { min: 0, max: 40, label: "表现良好", theme: "good" },
   { min: 41, max: 70, label: "注意调节", theme: "caution" },
@@ -52,18 +60,24 @@ export const ASSESSMENT_SCORE_RANGES = [
 
 export const ASSESSMENT_RESULT_CATEGORY_MAP = {
   "表现良好": {
-    categories: ["心理科普", "自我成长"],
-    tags: ["积极心态", "自我提升", "心理健康"],
+    primaryCategories: ["自我成长", "心理科普"],
+    secondaryCategories: ["人际交流"],
+    fallbackCategories: ["情绪疗愈"],
+    keywords: ["积极", "成长", "健康", "快乐", "幸福", "自信", "乐观"],
     description: "你的心理状态良好，继续保持积极的生活方式。",
   },
   "注意调节": {
-    categories: ["情绪调节", "压力管理"],
-    tags: ["减压技巧", "情绪管理", "放松训练"],
+    primaryCategories: ["情绪疗愈", "心理科普"],
+    secondaryCategories: ["自我成长"],
+    fallbackCategories: ["专业视角"],
+    keywords: ["情绪", "压力", "放松", "调节", "焦虑", "失眠", "疲惫"],
     description: "你目前可能存在一些压力或情绪波动，建议关注自我调节。",
   },
   "建议咨询": {
-    categories: ["心理咨询", "情绪调节"],
-    tags: ["专业帮助", "心理干预", "危机应对"],
+    primaryCategories: ["专业视角", "情绪疗愈"],
+    secondaryCategories: ["心理科普"],
+    fallbackCategories: ["自我成长"],
+    keywords: ["咨询", "治疗", "抑郁", "心理援助", "危机", "创伤"],
     description: "建议你寻求专业心理咨询师的帮助，及时调整状态。",
   },
 };

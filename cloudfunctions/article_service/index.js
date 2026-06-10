@@ -352,16 +352,38 @@ async function getRecommended(data = {}) {
 
 async function getRecommendedByAssessment(data = {}) {
   try {
-    const { score, categories = [], tags = [], limit = 3 } = data;
+    const {
+      score,
+      primaryCategories = [],
+      secondaryCategories = [],
+      fallbackCategories = [],
+      keywords = [],
+      limit = 3,
+    } = data;
+
+    const ALL_PSYCHOLOGY_CATEGORIES = [
+      "心理科普",
+      "情绪疗愈",
+      "人际交流",
+      "专业视角",
+      "自我成长",
+    ];
+
     const collectedIds = new Set();
     const finalArticles = [];
+    const tierStats = [];
 
     async function fetchByCategory(catList, fetchLimit) {
       if (!catList || catList.length === 0) return [];
       try {
+        const validCategories = catList.filter((c) =>
+          ALL_PSYCHOLOGY_CATEGORIES.includes(c)
+        );
+        if (validCategories.length === 0) return [];
+
         const res = await db
           .collection("articles")
-          .where({ category: _.in(catList) })
+          .where({ category: _.in(validCategories) })
           .orderBy("date", "desc")
           .limit(fetchLimit)
           .get();
@@ -372,72 +394,153 @@ async function getRecommendedByAssessment(data = {}) {
       }
     }
 
-    async function fetchByTags(tagList, fetchLimit) {
-      if (!tagList || tagList.length === 0) return [];
+    async function fetchByKeywordsInCategories(
+      keywordList,
+      catList,
+      fetchLimit
+    ) {
+      if (!keywordList || keywordList.length === 0) return [];
+      if (!catList || catList.length === 0) return [];
+
       try {
-        const orConditions = tagList.map((tag) => ({
-          title: db.RegExp({ regexp: tag, options: "i" }),
+        const validCategories = catList.filter((c) =>
+          ALL_PSYCHOLOGY_CATEGORIES.includes(c)
+        );
+        if (validCategories.length === 0) return [];
+
+        const titleOrConditions = keywordList.map((kw) => ({
+          title: db.RegExp({ regexp: kw, options: "i" }),
         }));
+        const descOrConditions = keywordList.map((kw) => ({
+          desc: db.RegExp({ regexp: kw, options: "i" }),
+        }));
+
         const res = await db
           .collection("articles")
-          .where(_.or(orConditions))
+          .where({
+            category: _.in(validCategories),
+            _id: _.exists(true),
+          })
+          .where(_.or([...titleOrConditions, ...descOrConditions]))
           .orderBy("date", "desc")
           .limit(fetchLimit)
           .get();
         return res.data || [];
       } catch (e) {
-        console.error("fetchByTags error:", e);
+        console.error("fetchByKeywordsInCategories error:", e);
         return [];
       }
     }
 
-    async function fetchLatest(fetchLimit) {
-      try {
-        const res = await db
-          .collection("articles")
-          .where({ _id: _.exists(true) })
-          .orderBy("date", "desc")
-          .limit(fetchLimit)
-          .get();
-        return res.data || [];
-      } catch (e) {
-        console.error("fetchLatest error:", e);
-        return [];
-      }
-    }
-
-    function addUniqueArticles(articles) {
+    function addUniqueArticles(articles, tierName) {
+      let added = 0;
       for (const article of articles) {
         if (finalArticles.length >= limit) break;
         if (!collectedIds.has(article._id)) {
           collectedIds.add(article._id);
           finalArticles.push(article);
+          added++;
         }
       }
-    }
-
-    const tier1Articles = await fetchByCategory(categories, limit * 2);
-    addUniqueArticles(tier1Articles);
-
-    if (finalArticles.length < limit) {
-      const remaining = limit - finalArticles.length;
-      const tier2Articles = await fetchByTags(tags, remaining * 2);
-      addUniqueArticles(tier2Articles);
-    }
-
-    if (finalArticles.length < limit) {
-      const remaining = limit - finalArticles.length;
-      const adjacentCategories = getAdjacentCategories(score);
-      if (adjacentCategories.length > 0) {
-        const tier3Articles = await fetchByCategory(adjacentCategories, remaining * 2);
-        addUniqueArticles(tier3Articles);
+      if (tierName) {
+        tierStats.push({ name: tierName, count: added });
       }
+      return added;
     }
 
+    let tier1Count = 0;
+    if (finalArticles.length < limit && primaryCategories.length > 0) {
+      const tier1Articles = await fetchByCategory(
+        primaryCategories,
+        limit * 2
+      );
+      tier1Count = addUniqueArticles(tier1Articles, "primary_category");
+    }
+
+    let tier2Count = 0;
+    if (finalArticles.length < limit && keywords.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier2Articles = await fetchByKeywordsInCategories(
+        keywords,
+        primaryCategories,
+        remaining * 2
+      );
+      tier2Count = addUniqueArticles(tier2Articles, "primary_keyword");
+    }
+
+    let tier3Count = 0;
+    if (finalArticles.length < limit && secondaryCategories.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier3Articles = await fetchByCategory(
+        secondaryCategories,
+        remaining * 2
+      );
+      tier3Count = addUniqueArticles(tier3Articles, "secondary_category");
+    }
+
+    let tier4Count = 0;
+    if (finalArticles.length < limit && keywords.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier4Articles = await fetchByKeywordsInCategories(
+        keywords,
+        secondaryCategories,
+        remaining * 2
+      );
+      tier4Count = addUniqueArticles(tier4Articles, "secondary_keyword");
+    }
+
+    let tier5Count = 0;
+    if (finalArticles.length < limit && fallbackCategories.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier5Articles = await fetchByCategory(
+        fallbackCategories,
+        remaining * 2
+      );
+      tier5Count = addUniqueArticles(tier5Articles, "fallback_category");
+    }
+
+    let tier6Count = 0;
+    if (finalArticles.length < limit && keywords.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier6Articles = await fetchByKeywordsInCategories(
+        keywords,
+        fallbackCategories,
+        remaining * 2
+      );
+      tier6Count = addUniqueArticles(tier6Articles, "fallback_keyword");
+    }
+
+    let tier7Count = 0;
+    if (finalArticles.length < limit && keywords.length > 0) {
+      const remaining = limit - finalArticles.length;
+      const tier7Articles = await fetchByKeywordsInCategories(
+        keywords,
+        ALL_PSYCHOLOGY_CATEGORIES,
+        remaining * 2
+      );
+      tier7Count = addUniqueArticles(tier7Articles, "all_category_keyword");
+    }
+
+    let tier8Count = 0;
     if (finalArticles.length < limit) {
       const remaining = limit - finalArticles.length;
-      const tier4Articles = await fetchLatest(remaining * 2);
-      addUniqueArticles(tier4Articles);
+      let allRelatedCategories = [
+        ...new Set([
+          ...primaryCategories,
+          ...secondaryCategories,
+          ...fallbackCategories,
+        ]),
+      ].filter((c) => ALL_PSYCHOLOGY_CATEGORIES.includes(c));
+
+      if (allRelatedCategories.length === 0) {
+        allRelatedCategories = [...ALL_PSYCHOLOGY_CATEGORIES];
+      }
+
+      const tier8Articles = await fetchByCategory(
+        allRelatedCategories,
+        remaining * 2
+      );
+      tier8Count = addUniqueArticles(tier8Articles, "related_category_fallback");
     }
 
     return {
@@ -445,30 +548,18 @@ async function getRecommendedByAssessment(data = {}) {
       data: finalArticles,
       meta: {
         total: finalArticles.length,
-        matchedCategories: categories,
-        matchedTags: tags,
-        tiers: [
-          { name: "category_match", count: tier1Articles.filter((a) => collectedIds.has(a._id)).length },
-          { name: "tag_match", count: Math.min(tier2Articles.length, limit - tier1Articles.length) },
-          { name: "fallback_adjacent", count: Math.max(0, finalArticles.length - tier1Articles.length - tier2Articles.length) },
-          { name: "fallback_latest", count: Math.max(0, finalArticles.length - limit) },
-        ],
+        targetLimit: limit,
+        score,
+        primaryCategories,
+        secondaryCategories,
+        fallbackCategories,
+        keywords,
+        tiers: tierStats,
       },
     };
   } catch (err) {
     console.error("getRecommendedByAssessment error:", err);
     return { code: 500, msg: err.message, data: [] };
-  }
-}
-
-function getAdjacentCategories(score) {
-  const normalizedScore = Math.max(0, Math.min(100, score));
-  if (normalizedScore <= 40) {
-    return ["心理科普", "自我成长", "情绪调节"];
-  } else if (normalizedScore <= 70) {
-    return ["情绪调节", "压力管理", "心理科普", "心理咨询"];
-  } else {
-    return ["心理咨询", "情绪调节", "压力管理"];
   }
 }
 
