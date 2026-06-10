@@ -20,6 +20,21 @@ const CRISIS_ACTION_KEYWORDS = [
   "伤害自己", "结束自己的生命",
 ];
 
+const SELF_REF_WORDS = ["我", "自己"];
+
+const THIRD_PERSON_SUBJ = [
+  "朋友说", "朋友要", "同学说", "同学要",
+  "他说", "她说", "他说要", "她說要",
+  "别人说", "别人要", "有人说", "有人要",
+  "他们", "她们", "那人", "那人要",
+  "新闻", "报道", "书上",
+];
+
+const POST_KEYWORD_NEGATION = [
+  "的意思", "的想法", "的念头", "的打算", "的冲动",
+  "的意图", "的勇气", "的决心",
+];
+
 const NEGATION_WORDS = [
   "不会", "不想", "不要", "没想", "没有想", "不可能",
   "不至于", "没打算", "从未", "不曾",
@@ -33,6 +48,11 @@ const NEGATION_WORDS = [
 ];
 
 const NEGATION_CHARS = ["不", "没", "别", "勿"];
+
+const MODIFIER_BRIDGE = [
+  "真的", "是", "是会", "是要", "要", "会", "能",
+  "是真心", "真的会", "真的要", "就是",
+];
 
 const CRISIS_HELP_GUIDE =
   "\n\n🆘 如果你正在经历痛苦或有伤害自己的想法，请立即寻求帮助：\n" +
@@ -69,14 +89,72 @@ function _hasNegationBefore(text, position, window) {
   return hasNegChar;
 }
 
+function _hasNegationWithBridge(text, position, window) {
+  var start = Math.max(0, position - window);
+  var prefix = text.slice(start, position);
+  for (var i = 0; i < NEGATION_WORDS.length; i++) {
+    var neg = NEGATION_WORDS[i];
+    var negIdx = prefix.lastIndexOf(neg);
+    if (negIdx === -1) continue;
+    var gap = prefix.slice(negIdx + neg.length);
+    var isBridgeable = gap.length === 0 || MODIFIER_BRIDGE.some(function (b) {
+      return gap === b || gap.startsWith(b);
+    });
+    if (isBridgeable) return true;
+  }
+  return false;
+}
+
+function _hasPostKeywordNegation(text, position, keyword) {
+  var after = text.slice(position + keyword.length);
+  return POST_KEYWORD_NEGATION.some(function (post) {
+    return after.startsWith(post);
+  });
+}
+
+function _hasSelfReference(text, position, keyword) {
+  var beforeStart = Math.max(0, position - 8);
+  var before = text.slice(beforeStart, position);
+  var after = text.slice(position + keyword.length, position + keyword.length + 8);
+  return SELF_REF_WORDS.some(function (w) {
+    return before.includes(w) || after.includes(w);
+  });
+}
+
+function _hasThirdPersonSubj(text, position) {
+  var beforeStart = Math.max(0, position - 12);
+  var before = text.slice(beforeStart, position);
+  return THIRD_PERSON_SUBJ.some(function (s) {
+    return before.includes(s);
+  });
+}
+
 function _anyUnnegatedMatch(text, keywordList, negWindow) {
   for (var i = 0; i < keywordList.length; i++) {
     var kw = keywordList[i];
     var positions = _findAllOccurrences(text, kw);
     for (var j = 0; j < positions.length; j++) {
-      if (!_hasNegationBefore(text, positions[j], negWindow)) {
-        return true;
-      }
+      if (_hasNegationBefore(text, positions[j], negWindow)) continue;
+      if (_hasNegationWithBridge(text, positions[j], negWindow + 4)) continue;
+      if (_hasPostKeywordNegation(text, positions[j], kw)) continue;
+      if (_hasThirdPersonSubj(text, positions[j])) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+function _anyUnnegatedSelfRefMatch(text, keywordList, negWindow) {
+  for (var i = 0; i < keywordList.length; i++) {
+    var kw = keywordList[i];
+    var positions = _findAllOccurrences(text, kw);
+    for (var j = 0; j < positions.length; j++) {
+      if (_hasNegationBefore(text, positions[j], negWindow)) continue;
+      if (_hasNegationWithBridge(text, positions[j], negWindow + 4)) continue;
+      if (_hasPostKeywordNegation(text, positions[j], kw)) continue;
+      if (_hasThirdPersonSubj(text, positions[j])) continue;
+      if (!_hasSelfReference(text, positions[j], kw)) continue;
+      return true;
     }
   }
   return false;
@@ -99,7 +177,7 @@ function detectCrisis(messages) {
   var hasImplicit = _anyUnnegatedMatch(userText, CRISIS_IMPLICIT_INTENT, 4);
   if (hasImplicit) return true;
 
-  var hasAction = _anyUnnegatedMatch(userText, CRISIS_ACTION_KEYWORDS, 4);
+  var hasAction = _anyUnnegatedSelfRefMatch(userText, CRISIS_ACTION_KEYWORDS, 4);
   if (hasAction) return true;
 
   return false;
