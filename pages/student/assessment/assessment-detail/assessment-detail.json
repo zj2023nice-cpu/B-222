@@ -6,6 +6,7 @@
     "t-button": "tdesign-miniprogram/button/button",
     "t-toast": "tdesign-miniprogram/toast/toast",
     "t-progress": "tdesign-miniprogram/progress/progress",
-    "t-loading": "tdesign-miniprogram/loading/loading"
+    "t-loading": "tdesign-miniprogram/loading/loading",
+    "article-card": "/components/article-card/article-card"
   }
 }

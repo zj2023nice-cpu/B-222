@@ -44,8 +44,52 @@ export const APPOINTMENT_STATUS_MAP = {
   rejected: { label: "已拒绝", theme: "danger" },
 };
 
+export const ASSESSMENT_SCORE_RANGES = [
+  { min: 0, max: 40, label: "表现良好", theme: "good" },
+  { min: 41, max: 70, label: "注意调节", theme: "caution" },
+  { min: 71, max: 100, label: "建议咨询", theme: "warning" },
+];
+
+export const ASSESSMENT_RESULT_CATEGORY_MAP = {
+  "表现良好": {
+    categories: ["心理科普", "自我成长"],
+    tags: ["积极心态", "自我提升", "心理健康"],
+    description: "你的心理状态良好，继续保持积极的生活方式。",
+  },
+  "注意调节": {
+    categories: ["情绪调节", "压力管理"],
+    tags: ["减压技巧", "情绪管理", "放松训练"],
+    description: "你目前可能存在一些压力或情绪波动，建议关注自我调节。",
+  },
+  "建议咨询": {
+    categories: ["心理咨询", "情绪调节"],
+    tags: ["专业帮助", "心理干预", "危机应对"],
+    description: "建议你寻求专业心理咨询师的帮助，及时调整状态。",
+  },
+};
+
+export function getResultLabelByScore(score) {
+  const normalizedScore = Math.max(0, Math.min(100, score));
+  const range = ASSESSMENT_SCORE_RANGES.find(
+    (r) => normalizedScore >= r.min && normalizedScore <= r.max
+  );
+  return range ? range.label : "表现良好";
+}
+
+export function getResultConfigByScore(score) {
+  const label = getResultLabelByScore(score);
+  return {
+    label,
+    ...ASSESSMENT_RESULT_CATEGORY_MAP[label],
+  };
+}
+
 export default {
   DIALOG_CONFIGS,
   APPOINTMENT_STATUS_LIST,
   APPOINTMENT_STATUS_MAP,
+  ASSESSMENT_SCORE_RANGES,
+  ASSESSMENT_RESULT_CATEGORY_MAP,
+  getResultLabelByScore,
+  getResultConfigByScore,
 };

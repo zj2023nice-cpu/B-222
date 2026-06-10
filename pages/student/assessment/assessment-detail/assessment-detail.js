@@ -1,14 +1,7 @@
 import assessmentService from "../../../../services/assessment";
-import articleService from "../../../../services/article";
-
 import Toast from "tdesign-miniprogram/toast/index";
 import { SafePage } from "../../../../utils/middleware";
-
-const RESULT_CATEGORY_MAP = {
-  "表现良好": ["心理科普", "自我成长"],
-  "注意调节": ["情绪调节", "压力管理"],
-  "建议咨询": ["心理咨询", "情绪调节"],
-};
+import { getResultConfigByScore } from "../../../../utils/constants";
 
 SafePage({
   data: {
@@ -50,6 +43,7 @@ SafePage({
     showResult: false,
     normalizedScore: 0,
     resultLabel: "",
+    resultDescription: "",
     recommendedArticles: [],
     articlesLoading: false,
   },
@@ -115,9 +109,7 @@ SafePage({
         (totalScore / (questions.length * 3)) * 100,
       );
 
-      let resultLabel = "表现良好";
-      if (normalizedScore > 70) resultLabel = "建议咨询";
-      else if (normalizedScore > 40) resultLabel = "注意调节";
+      const resultConfig = getResultConfigByScore(normalizedScore);
 
       const userInfo = wx.getStorageSync("userInfo") || {};
 
@@ -125,7 +117,7 @@ SafePage({
         assessmentId: id,
         assessmentTitle: assessmentTitle,
         score: normalizedScore,
-        result: resultLabel,
+        result: resultConfig.label,
         userName: userInfo.name || "匿名学生",
         userAvatar: userInfo.avatar || "",
       });
@@ -133,10 +125,11 @@ SafePage({
       this.setData({
         showResult: true,
         normalizedScore,
-        resultLabel,
+        resultLabel: resultConfig.label,
+        resultDescription: resultConfig.description,
       });
 
-      this.loadRecommendedArticles(resultLabel);
+      this.loadRecommendedArticles(normalizedScore);
     } catch (err) {
       console.error("提交失败", err);
       Toast({
@@ -151,11 +144,10 @@ SafePage({
     }
   },
 
-  async loadRecommendedArticles(resultLabel) {
+  async loadRecommendedArticles(score) {
     this.setData({ articlesLoading: true });
     try {
-      const categories = RESULT_CATEGORY_MAP[resultLabel] || [];
-      const result = await articleService.getRecommended(categories, 3);
+      const result = await assessmentService.getRecommendedArticles(score, 3);
       this.setData({ recommendedArticles: result.data || [] });
     } catch (err) {
       console.error("获取推荐文章失败:", err);
@@ -164,11 +156,11 @@ SafePage({
     }
   },
 
-  goToArticleDetail(e) {
-    const { id } = e.currentTarget.dataset;
-    if (!id) return;
+  onArticleClick(e) {
+    const { article } = e.detail;
+    if (!article || !article._id || article.isDeleted) return;
     wx.navigateTo({
-      url: `/pages/student/articles/article-detail/article-detail?id=${id}`,
+      url: `/pages/student/articles/article-detail/article-detail?id=${article._id}`,
     });
   },
 

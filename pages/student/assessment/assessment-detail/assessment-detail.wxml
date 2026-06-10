@@ -78,45 +78,28 @@
       </view>
       <view class="result-label {{ resultLabel === '建议咨询' ? 'label-warning' : resultLabel === '注意调节' ? 'label-caution' : 'label-good' }}">{{ resultLabel }}</view>
       <view class="result-desc">
-        <text wx:if="{{ resultLabel === '表现良好' }}">你的心理状态良好，继续保持积极的生活方式。</text>
-        <text wx:elif="{{ resultLabel === '注意调节' }}">你目前可能存在一些压力或情绪波动，建议关注自我调节。</text>
-        <text wx:elif="{{ resultLabel === '建议咨询' }}">建议你寻求专业心理咨询师的帮助，及时调整状态。</text>
+        <text>{{ resultDescription }}</text>
       </view>
     </view>
 
     <view class="recommend-section">
-      <view class="recommend-title">推荐阅读</view>
+      <view class="recommend-title">为你推荐</view>
 
       <view wx:if="{{ articlesLoading }}" class="recommend-loading">
         <t-loading theme="circular" size="40rpx" text="加载中..." />
       </view>
 
       <block wx:elif="{{ recommendedArticles.length > 0 }}">
-        <view
-          class="article-card"
+        <article-card
           wx:for="{{ recommendedArticles }}"
           wx:key="_id"
-          data-id="{{ item._id }}"
-          bindtap="goToArticleDetail"
-        >
-          <image
-            wx:if="{{ item.cover }}"
-            class="article-cover"
-            src="{{ item.cover }}"
-            mode="aspectFill"
-          />
-          <view class="article-info">
-            <view class="article-title">{{ item.title }}</view>
-            <view class="article-meta">
-              <text class="article-category">{{ item.category }}</text>
-              <text class="article-views">{{ item.views || 0 }} 阅读</text>
-            </view>
-          </view>
-        </view>
+          article="{{ item }}"
+          bind:click="onArticleClick"
+        />
       </block>
 
       <view wx:else class="recommend-empty">
-        <text>暂无推荐文章</text>
+        <text>暂无推荐内容</text>
       </view>
     </view>
 

@@ -16,6 +16,9 @@ async function call(action, data = {}) {
   }
 }
 
+import { getResultConfigByScore } from "../utils/constants";
+import articleService from "./article";
+
 const assessmentService = {
   getList: () => call("get_list"),
   getDetail: (id) => call("get_detail", { id }),
@@ -29,6 +32,17 @@ const assessmentService = {
   submitTest: (testData) => call("submit_test", testData),
   getStudentRecords: (searchQuery) =>
     call("get_student_records", { searchQuery }),
+
+  getRecommendedArticles: async (score, limit = 3) => {
+    const config = getResultConfigByScore(score);
+    return articleService.getRecommendedByAssessment({
+      score,
+      resultLabel: config.label,
+      categories: config.categories,
+      tags: config.tags,
+      limit,
+    });
+  },
 };
 
 export default assessmentService;

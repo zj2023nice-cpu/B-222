@@ -27,6 +27,8 @@ exports.main = async (event, context) => {
       return await getHomeData();
     case "get_recommended":
       return await getRecommended(data);
+    case "get_recommended_by_assessment":
+      return await getRecommendedByAssessment(data);
 
     // 管理端接口
     case "admin_get_list":
@@ -345,6 +347,128 @@ async function getRecommended(data = {}) {
     return { code: 0, data: res.data };
   } catch (err) {
     return { code: 500, msg: err.message };
+  }
+}
+
+async function getRecommendedByAssessment(data = {}) {
+  try {
+    const { score, categories = [], tags = [], limit = 3 } = data;
+    const collectedIds = new Set();
+    const finalArticles = [];
+
+    async function fetchByCategory(catList, fetchLimit) {
+      if (!catList || catList.length === 0) return [];
+      try {
+        const res = await db
+          .collection("articles")
+          .where({ category: _.in(catList) })
+          .orderBy("date", "desc")
+          .limit(fetchLimit)
+          .get();
+        return res.data || [];
+      } catch (e) {
+        console.error("fetchByCategory error:", e);
+        return [];
+      }
+    }
+
+    async function fetchByTags(tagList, fetchLimit) {
+      if (!tagList || tagList.length === 0) return [];
+      try {
+        const orConditions = tagList.map((tag) => ({
+          title: db.RegExp({ regexp: tag, options: "i" }),
+        }));
+        const res = await db
+          .collection("articles")
+          .where(_.or(orConditions))
+          .orderBy("date", "desc")
+          .limit(fetchLimit)
+          .get();
+        return res.data || [];
+      } catch (e) {
+        console.error("fetchByTags error:", e);
+        return [];
+      }
+    }
+
+    async function fetchLatest(fetchLimit) {
+      try {
+        const res = await db
+          .collection("articles")
+          .where({ _id: _.exists(true) })
+          .orderBy("date", "desc")
+          .limit(fetchLimit)
+          .get();
+        return res.data || [];
+      } catch (e) {
+        console.error("fetchLatest error:", e);
+        return [];
+      }
+    }
+
+    function addUniqueArticles(articles) {
+      for (const article of articles) {
+        if (finalArticles.length >= limit) break;
+        if (!collectedIds.has(article._id)) {
+          collectedIds.add(article._id);
+          finalArticles.push(article);
+        }
+      }
+    }
+
+    const tier1Articles = await fetchByCategory(categories, limit * 2);
+    addUniqueArticles(tier1Articles);
+
+    if (finalArticles.length < limit) {
+      const remaining = limit - finalArticles.length;
+      const tier2Articles = await fetchByTags(tags, remaining * 2);
+      addUniqueArticles(tier2Articles);
+    }
+
+    if (finalArticles.length < limit) {
+      const remaining = limit - finalArticles.length;
+      const adjacentCategories = getAdjacentCategories(score);
+      if (adjacentCategories.length > 0) {
+        const tier3Articles = await fetchByCategory(adjacentCategories, remaining * 2);
+        addUniqueArticles(tier3Articles);
+      }
+    }
+
+    if (finalArticles.length < limit) {
+      const remaining = limit - finalArticles.length;
+      const tier4Articles = await fetchLatest(remaining * 2);
+      addUniqueArticles(tier4Articles);
+    }
+
+    return {
+      code: 0,
+      data: finalArticles,
+      meta: {
+        total: finalArticles.length,
+        matchedCategories: categories,
+        matchedTags: tags,
+        tiers: [
+          { name: "category_match", count: tier1Articles.filter((a) => collectedIds.has(a._id)).length },
+          { name: "tag_match", count: Math.min(tier2Articles.length, limit - tier1Articles.length) },
+          { name: "fallback_adjacent", count: Math.max(0, finalArticles.length - tier1Articles.length - tier2Articles.length) },
+          { name: "fallback_latest", count: Math.max(0, finalArticles.length - limit) },
+        ],
+      },
+    };
+  } catch (err) {
+    console.error("getRecommendedByAssessment error:", err);
+    return { code: 500, msg: err.message, data: [] };
+  }
+}
+
+function getAdjacentCategories(score) {
+  const normalizedScore = Math.max(0, Math.min(100, score));
+  if (normalizedScore <= 40) {
+    return ["心理科普", "自我成长", "情绪调节"];
+  } else if (normalizedScore <= 70) {
+    return ["情绪调节", "压力管理", "心理科普", "心理咨询"];
+  } else {
+    return ["心理咨询", "情绪调节", "压力管理"];
   }
 }
 

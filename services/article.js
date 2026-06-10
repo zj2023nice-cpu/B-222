@@ -26,6 +26,9 @@ const articleService = {
   getRecommended: (categories, limit = 3) =>
     call("get_recommended", { categories, limit }),
 
+  getRecommendedByAssessment: (params) =>
+    call("get_recommended_by_assessment", params),
+
   // 管理端接口
   adminGetArticles: (params) => call("admin_get_list", params),
   adminCreateArticle: (data) => call("admin_create", data),
