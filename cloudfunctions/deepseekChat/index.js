@@ -1,9 +1,18 @@
 const tcb = require("@cloudbase/node-sdk");
 
-const CRISIS_INTENT_KEYWORDS = [
-  "想死", "不想活了", "想自杀", "想结束生命", "一了百了",
-  "让我死", "不如去死", "想去死", "好想死", "准备自杀",
-  "打算自杀", "决定自杀", "生无可恋", "没有活下去的意义",
+const CRISIS_EXPLICIT_FIXED = [
+  "一了百了", "生无可恋", "没有活下去的意义",
+  "让我死", "不如去死", "真想死", "就想死", "就是想死",
+];
+
+const CRISIS_EXPLICIT_NEGATABLE = [
+  "想自杀", "想结束生命", "想去死", "好想死",
+  "准备自杀", "打算自杀", "决定自杀",
+  "想去跳楼", "想去割腕",
+];
+
+const CRISIS_IMPLICIT_INTENT = [
+  "想死",
 ];
 
 const CRISIS_ACTION_KEYWORDS = [
@@ -12,18 +21,12 @@ const CRISIS_ACTION_KEYWORDS = [
   "伤害自己", "结束自己的生命",
 ];
 
-const CRISIS_AMBIGUOUS_KEYWORDS = [
-  "活不下去", "死了算了", "活着没意思",
-];
-
-const INTENT_AMPLIFIERS = [
-  "真的", "实在", "已经", "再也", "好想", "就想", "真想",
-];
-
 const NEGATION_WORDS = [
-  "不会", "不想", "别", "不要", "没想", "没有想", "不可能",
+  "不会", "不想", "不要", "没想", "没有想", "不可能",
   "不至于", "没打算", "从未", "不曾",
 ];
+
+const NEGATION_CHARS = ["不", "没", "别", "勿"];
 
 const CRISIS_HELP_GUIDE =
   "\n\n🆘 如果你正在经历痛苦或有伤害自己的想法，请立即寻求帮助：\n" +
@@ -33,12 +36,44 @@ const CRISIS_HELP_GUIDE =
   "• 你也可以联系学校心理咨询中心或辅导员，他们随时愿意帮助你。\n" +
   "请记住，你并不孤单，有人愿意倾听和帮助。";
 
+function _findAllOccurrences(text, kw) {
+  var positions = [];
+  if (!kw) return positions;
+  var idx = 0;
+  while ((idx = text.indexOf(kw, idx)) !== -1) {
+    positions.push(idx);
+    idx += kw.length;
+  }
+  return positions;
+}
+
 function _hasNegationBefore(text, position, window) {
   var start = Math.max(0, position - window);
   var prefix = text.slice(start, position);
-  return NEGATION_WORDS.some(function (neg) {
+  var hasNegWord = NEGATION_WORDS.some(function (neg) {
     return prefix.includes(neg);
   });
+  if (hasNegWord) return true;
+
+  var tightStart = Math.max(0, position - 2);
+  var tightPrefix = text.slice(tightStart, position);
+  var hasNegChar = NEGATION_CHARS.some(function (ch) {
+    return tightPrefix.includes(ch);
+  });
+  return hasNegChar;
+}
+
+function _anyUnnegatedMatch(text, keywordList, negWindow) {
+  for (var i = 0; i < keywordList.length; i++) {
+    var kw = keywordList[i];
+    var positions = _findAllOccurrences(text, kw);
+    for (var j = 0; j < positions.length; j++) {
+      if (!_hasNegationBefore(text, positions[j], negWindow)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function detectCrisis(messages) {
@@ -47,27 +82,19 @@ function detectCrisis(messages) {
     .map(function (m) { return m.content; })
     .join(" ");
 
-  for (var i = 0; i < CRISIS_INTENT_KEYWORDS.length; i++) {
-    if (userText.includes(CRISIS_INTENT_KEYWORDS[i])) return true;
-  }
+  var hitFixed = CRISIS_EXPLICIT_FIXED.some(function (kw) {
+    return userText.includes(kw);
+  });
+  if (hitFixed) return true;
 
-  for (var i = 0; i < CRISIS_ACTION_KEYWORDS.length; i++) {
-    var kw = CRISIS_ACTION_KEYWORDS[i];
-    var idx = userText.indexOf(kw);
-    if (idx === -1) continue;
-    if (!_hasNegationBefore(userText, idx, 4)) return true;
-  }
+  var hitNegatable = _anyUnnegatedMatch(userText, CRISIS_EXPLICIT_NEGATABLE, 3);
+  if (hitNegatable) return true;
 
-  for (var i = 0; i < CRISIS_AMBIGUOUS_KEYWORDS.length; i++) {
-    var kw = CRISIS_AMBIGUOUS_KEYWORDS[i];
-    var idx = userText.indexOf(kw);
-    if (idx === -1) continue;
-    if (_hasNegationBefore(userText, idx, 5)) continue;
-    var hasAmplifier = INTENT_AMPLIFIERS.some(function (amp) {
-      return userText.includes(amp);
-    });
-    if (hasAmplifier) return true;
-  }
+  var hasImplicit = _anyUnnegatedMatch(userText, CRISIS_IMPLICIT_INTENT, 3);
+  if (hasImplicit) return true;
+
+  var hasAction = _anyUnnegatedMatch(userText, CRISIS_ACTION_KEYWORDS, 4);
+  if (hasAction) return true;
 
   return false;
 }
