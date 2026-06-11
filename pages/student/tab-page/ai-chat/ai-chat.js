@@ -172,29 +172,31 @@ Component({
       this._persistCurrentSession();
 
       const history = this._buildHistory();
-      this._startStreamRequest(aiTempId, currentRequestId, history, null);
+      this._startStreamRequest(aiTempId, currentRequestId, history, null, null);
     },
 
-    _startStreamRequest(aiMsgId, requestId, history, continueFrom) {
+    _startStreamRequest(aiMsgId, requestId, history, continueFrom, baseContent) {
+      const base = baseContent || "";
       const controller = aiService.chatStream(
         history,
         this.data.currentSession.sessionId,
         continueFrom,
         {
-          onDelta: (delta, fullText) => {
+          onDelta: (delta, streamText) => {
             if (this.activeRequestId !== requestId) return;
-            this.updateAiMsg(aiMsgId, fullText, "pending");
+            this.updateAiMsg(aiMsgId, base + streamText, "pending");
           },
           onDone: (result) => {
             if (this.activeRequestId !== requestId) return;
-            this._handleStreamDone(aiMsgId, requestId, result);
+            this._handleStreamDone(aiMsgId, requestId, result, base);
           },
           onError: (err) => {
             if (this.activeRequestId !== requestId) return;
             console.error("AI chat stream error", err);
-            const currentContent = controller.getFullText();
-            if (currentContent && currentContent.trim()) {
-              this.updateAiMsg(aiMsgId, currentContent, "interrupted", {
+            const streamText = controller.getFullText();
+            const finalContent = base + streamText;
+            if (finalContent && finalContent.trim()) {
+              this.updateAiMsg(aiMsgId, finalContent, "interrupted", {
                 isTruncated: true,
               });
             } else {
@@ -209,19 +211,18 @@ Component({
       this.activeStreamController = controller;
     },
 
-    _handleStreamDone(aiMsgId, requestId, result) {
+    _handleStreamDone(aiMsgId, requestId, result, baseContent) {
+      const base = baseContent || "";
       if (!result || !result.success) {
-        this.updateAiMsg(
-          aiMsgId,
-          result?.reply || "抱歉，连接断开了。",
-          "error"
-        );
+        const fallbackContent = base + (result?.reply || "抱歉，连接断开了。");
+        this.updateAiMsg(aiMsgId, fallbackContent, "error");
         this._finishRequest(requestId);
         this._persistCurrentSession();
         return;
       }
 
-      this.updateAiMsg(aiMsgId, result.reply, "success", {
+      const finalReply = base + result.reply;
+      this.updateAiMsg(aiMsgId, finalReply, "success", {
         risk: result.risk || false,
         crisisGuide: result.crisisGuide || null,
         isTruncated: false,
@@ -232,7 +233,7 @@ Component({
         if (m.id === aiMsgId) {
           return {
             ...m,
-            content: result.reply,
+            content: finalReply,
             status: "success",
             risk: result.risk || false,
             crisisGuide: result.crisisGuide || null,
@@ -259,11 +260,6 @@ Component({
       if (!this.data.isLoading) return;
 
       const pendingMsg = this.data.messages.find((m) => m.status === "pending");
-      const currentContent = this.activeStreamController
-        ? this.activeStreamController.getFullText()
-        : pendingMsg
-        ? pendingMsg.content
-        : "";
 
       this.activeRequestId = null;
       if (this.activeStreamController) {
@@ -277,8 +273,8 @@ Component({
       });
 
       if (pendingMsg) {
-        if (currentContent && currentContent.trim()) {
-          this.updateAiMsg(pendingMsg.id, currentContent, "interrupted", {
+        if (pendingMsg.content && pendingMsg.content.trim()) {
+          this.updateAiMsg(pendingMsg.id, pendingMsg.content, "interrupted", {
             isTruncated: true,
           });
         } else {
@@ -298,32 +294,21 @@ Component({
       if (!targetMsg || targetMsg.status !== "interrupted") return;
       if (!targetMsg.content || !targetMsg.content.trim()) return;
 
-      const timestamp = Date.now();
-      const timeStr = this._getTimeStr(timestamp);
-      const currentRequestId = timestamp;
+      const currentRequestId = Date.now();
       this.activeRequestId = currentRequestId;
 
-      const newAiMsgId = "a" + timestamp;
-      const newAiMsg = {
-        id: newAiMsgId,
-        role: "ai",
-        content: targetMsg.content,
-        status: "pending",
-        name: "AI 心理助手",
-        datetime: timeStr,
-        isTruncated: false,
-        continuationOf: msgId,
-      };
+      const baseContent = targetMsg.content;
 
       const newMessages = this.data.messages.map((m) => {
         if (m.id === msgId) {
-          return { ...m, isTruncated: false };
+          return {
+            ...m,
+            status: "pending",
+            isTruncated: false,
+          };
         }
         return m;
       });
-
-      const insertIndex = newMessages.findIndex((m) => m.id === msgId);
-      newMessages.splice(insertIndex, 0, newAiMsg);
 
       this.setData({
         messages: newMessages,
@@ -333,14 +318,13 @@ Component({
       });
       this._persistCurrentSession();
 
-      const history = this._buildHistoryForContinue(newMessages, newAiMsgId, msgId);
-      this._startStreamRequest(newAiMsgId, currentRequestId, history, targetMsg.content);
+      const history = this._buildHistoryForContinue(newMessages, msgId);
+      this._startStreamRequest(msgId, currentRequestId, history, baseContent, baseContent);
     },
 
-    _buildHistoryForContinue(messages, newAiMsgId, interruptedMsgId) {
+    _buildHistoryForContinue(messages, interruptedMsgId) {
       const result = [];
       for (const m of messages) {
-        if (m.id === newAiMsgId) continue;
         if (m.role === "ai" && m.status === "error") continue;
         if (m.role === "ai" && m.id === interruptedMsgId) continue;
         if (!m.content) continue;
