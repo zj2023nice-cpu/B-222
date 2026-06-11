@@ -43,6 +43,7 @@ Component({
 
   activeStreamController: null,
   activeRequestId: null,
+  activeBaseContent: "",
 
   lifetimes: {
     attached() {
@@ -177,6 +178,7 @@ Component({
 
     _startStreamRequest(aiMsgId, requestId, history, continueFrom, baseContent) {
       const base = baseContent || "";
+      this.activeBaseContent = base;
       const controller = aiService.chatStream(
         history,
         this.data.currentSession.sessionId,
@@ -253,6 +255,7 @@ Component({
         this.setData({ isTyping: false, isLoading: false });
         this.activeRequestId = null;
         this.activeStreamController = null;
+        this.activeBaseContent = "";
       }
     },
 
@@ -260,12 +263,18 @@ Component({
       if (!this.data.isLoading) return;
 
       const pendingMsg = this.data.messages.find((m) => m.status === "pending");
+      const base = this.activeBaseContent || "";
+      const streamText = this.activeStreamController
+        ? this.activeStreamController.getFullText()
+        : "";
+      const latestContent = base + streamText;
 
       this.activeRequestId = null;
       if (this.activeStreamController) {
         this.activeStreamController.cancel();
         this.activeStreamController = null;
       }
+      this.activeBaseContent = "";
 
       this.setData({
         isTyping: false,
@@ -273,8 +282,8 @@ Component({
       });
 
       if (pendingMsg) {
-        if (pendingMsg.content && pendingMsg.content.trim()) {
-          this.updateAiMsg(pendingMsg.id, pendingMsg.content, "interrupted", {
+        if (latestContent && latestContent.trim()) {
+          this.updateAiMsg(pendingMsg.id, latestContent, "interrupted", {
             isTruncated: true,
           });
         } else {
