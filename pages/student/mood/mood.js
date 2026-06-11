@@ -65,9 +65,19 @@ Page({
     isLoading: false,
     navbarHeight: 0,
     allHistoryRecords: [], // 存储全量历史记录
-    selectedDate: null, // 默认不选日期，显示全部
-    formattedSelectedDate: "全部情绪记录",
+    dateFilter: {
+      mode: "all", // all | range
+      start: null, // YYYY-MM-DD
+      end: null,   // YYYY-MM-DD
+    },
+    formattedDateFilter: "全部情绪记录",
     showCalendar: false,
+    calendarValue: [],
+    rangeStats: {
+      totalRecords: 0,
+      topMood: null,
+      topMoodCount: 0,
+    },
     minDate: new Date("2025/01/01 00:00:00").getTime(), // 默认一个较早的时间
     maxDate: new Date().setHours(23, 59, 59, 999), // 默认今天结束
     rowSkeleton: [
@@ -349,27 +359,63 @@ Page({
   },
 
   filterHistoryByDate() {
-    const { allHistoryRecords, selectedDate } = this.data;
-    if (!selectedDate) {
-      this.setData({
-        historyRecords: allHistoryRecords,
-        formattedSelectedDate: "全部情绪记录",
+    const { allHistoryRecords, dateFilter, moodOptions } = this.data;
+
+    let filtered = allHistoryRecords;
+    let formattedLabel = "全部情绪记录";
+
+    if (dateFilter.mode === "range" && dateFilter.start && dateFilter.end) {
+      const startKey = dateFilter.start;
+      const endKey = dateFilter.end;
+
+      filtered = allHistoryRecords.filter((item) => {
+        if (!item.dateKey) return false;
+        return item.dateKey >= startKey && item.dateKey <= endKey;
       });
-      return;
+
+      const [sy, sm, sd] = startKey.split("-").map((x) => parseInt(x, 10));
+      const [ey, em, ed] = endKey.split("-").map((x) => parseInt(x, 10));
+      if (startKey === endKey) {
+        formattedLabel = `${sm}月${sd}日的心情`;
+      } else {
+        formattedLabel = `${sm}月${sd}日 - ${em}月${ed}日的心情`;
+      }
     }
 
-    const date = new Date(selectedDate);
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const day = date.getDate().toString().padStart(2, "0");
-    const targetKey = `${year}-${month}-${day}`;
+    const totalRecords = filtered.length;
+    let topMood = null;
+    let topMoodCount = 0;
 
-    const filtered = allHistoryRecords.filter(
-      (item) => item.dateKey === targetKey,
-    );
+    if (totalRecords > 0) {
+      const moodCounts = {};
+      filtered.forEach((r) => {
+        if (r.mood) {
+          moodCounts[r.mood] = (moodCounts[r.mood] || 0) + 1;
+        }
+      });
+
+      const sorted = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
+      if (sorted.length > 0) {
+        const [moodType, count] = sorted[0];
+        topMoodCount = count;
+        const moodInfo = moodOptions.find((m) => m.type === moodType) || {};
+        topMood = {
+          type: moodType,
+          emoji: moodInfo.emoji || "❓",
+          label: moodInfo.label || "未知",
+          color: moodInfo.color || "#999",
+        };
+      }
+    }
+
     this.setData({
       historyRecords: filtered,
-      formattedSelectedDate: `${month}月${day}日的心情`,
+      formattedDateFilter: formattedLabel,
+      rangeStats: {
+        totalRecords,
+        topMood,
+        topMoodCount,
+      },
     });
   },
 
@@ -495,9 +541,30 @@ Page({
 
   onCalendarConfirm(e) {
     const { value } = e.detail;
+
+    let start = null;
+    let end = null;
+    let mode = "all";
+
+    if (Array.isArray(value) && value.length >= 2 && value[0] && value[1]) {
+      const s = new Date(value[0]);
+      const e = new Date(value[1]);
+      start = this.formatDateStr(s);
+      end = this.formatDateStr(e);
+      if (start > end) {
+        [start, end] = [end, start];
+      }
+      mode = "range";
+    } else if (value && !Array.isArray(value)) {
+      const d = new Date(value);
+      start = this.formatDateStr(d);
+      end = start;
+      mode = "range";
+    }
+
     this.setData(
       {
-        selectedDate: value,
+        dateFilter: { mode, start, end },
         showCalendar: false,
       },
       () => {
@@ -507,13 +574,27 @@ Page({
   },
 
   onCalendarToggle() {
-    this.setData({ showCalendar: !this.data.showCalendar });
+    const willShow = !this.data.showCalendar;
+    const { dateFilter } = this.data;
+
+    let calendarValue = [];
+    if (willShow && dateFilter.mode === "range" && dateFilter.start && dateFilter.end) {
+      const startTs = new Date(dateFilter.start + " 00:00:00").getTime();
+      const endTs = new Date(dateFilter.end + " 23:59:59").getTime();
+      calendarValue = [startTs, endTs];
+    }
+
+    this.setData({
+      showCalendar: willShow,
+      calendarValue,
+    });
   },
 
   clearDateFilter() {
     this.setData(
       {
-        selectedDate: null,
+        dateFilter: { mode: "all", start: null, end: null },
+        calendarValue: [],
       },
       () => {
         this.filterHistoryByDate();

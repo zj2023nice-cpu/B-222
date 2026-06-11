@@ -24,19 +24,19 @@
       <view class="calendar-trigger-wrap">
         <view class="calendar-info" bindtap="onCalendarToggle">
           <t-icon name="calendar" size="40rpx" color="#666" />
-          <text class="selected-date-text">{{ formattedSelectedDate }}</text>
+          <text class="selected-date-text">{{ formattedDateFilter }}</text>
         </view>
         <view
           class="calendar-action"
-          bindtap="{{ selectedDate ? 'clearDateFilter' : 'onCalendarToggle' }}"
+          bindtap="{{ dateFilter.mode === 'range' ? 'clearDateFilter' : 'onCalendarToggle' }}"
         >
           <text class="action-label"
-            >{{ selectedDate ? '显示全部' : '点击筛选' }}</text
+            >{{ dateFilter.mode === 'range' ? '显示全部' : '点击筛选' }}</text
           >
           <t-icon
-            name="{{ selectedDate ? 'close-circle-filled' : 'chevron-down' }}"
+            name="{{ dateFilter.mode === 'range' ? 'close-circle-filled' : 'chevron-down' }}"
             size="32rpx"
-            color="{{ selectedDate ? '#fa4126' : '#bbb' }}"
+            color="{{ dateFilter.mode === 'range' ? '#fa4126' : '#bbb' }}"
           />
         </view>
       </view>
@@ -157,11 +157,32 @@
     wx:if="{{ activeTab === 'history' }}"
     class="anim-fade-in record-panel-bg"
   >
+    <!-- 区间统计卡片 -->
+    <view
+      class="range-stats-card"
+      wx:if="{{ dateFilter.mode === 'range' && rangeStats.totalRecords > 0 }}"
+    >
+      <view class="range-stats-item">
+        <view class="stats-label">记录总数</view>
+        <view class="stats-value">{{ rangeStats.totalRecords }}</view>
+        <view class="stats-unit">条</view>
+      </view>
+      <view class="range-stats-divider"></view>
+      <view class="range-stats-item mood-stat">
+        <view class="stats-label">出现最多</view>
+        <view class="stats-mood">
+          <text class="stats-emoji">{{ rangeStats.topMood.emoji }}</text>
+          <text class="stats-mood-label" style="color: {{ rangeStats.topMood.color }};">{{ rangeStats.topMood.label }}</text>
+        </view>
+        <view class="stats-unit">× {{ rangeStats.topMoodCount }}</view>
+      </view>
+    </view>
+
     <list-view
       isRefreshing="{{ isRefreshing }}"
       isEmpty="{{ historyRecords.length === 0 && !isLoading }}"
       showFooter="{{ historyRecords.length > 0 }}"
-      emptyText="{{ selectedDate ? '该日期暂无记录' : '还没有记录过心情呢' }}"
+      emptyText="{{ dateFilter.mode === 'range' ? '该区间暂无记录' : '还没有记录过心情呢' }}"
       bind:refresh="onRefresh"
     >
       <view class="skeleton-list" wx:if="{{ isLoading }}">
@@ -193,13 +214,14 @@
 
     <!-- 日历弹窗 -->
     <t-calendar
+      type="range"
       visible="{{ showCalendar }}"
-      value="{{ selectedDate }}"
+      value="{{ calendarValue }}"
       min-date="{{ minDate }}"
       max-date="{{ maxDate }}"
       bind:confirm="onCalendarConfirm"
       bind:close="onCalendarToggle"
-      title="选择查询日期"
+      title="选择日期区间"
     />
   </view>
 
