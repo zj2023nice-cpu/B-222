@@ -48,14 +48,30 @@
     wx:if="{{ activeTab === 'record' }}"
     class="tab-content record-panel anim-fade-in record-panel-bg"
   >
+    <!-- 补录提示条 -->
+    <view class="record-date-banner {{ !isRecordDateToday ? 'show' : '' }}" bindtap="onRecordCalendarToggle">
+      <view class="banner-left">
+        <t-icon name="time-back" size="36rpx" color="#0052d9" />
+        <text class="banner-text">正在补录 <text class="banner-date">{{ recordDateStr }}</text> 的情绪</text>
+      </view>
+      <view class="banner-action">
+        <text class="action-text">修改</text>
+        <t-icon name="chevron-right" size="28rpx" color="#999" />
+      </view>
+    </view>
+
     <!-- 今日概览 -->
     <view class="header-section">
-      <view class="date-box">
+      <view class="date-box" bindtap="onRecordCalendarToggle">
         <view class="day">{{ todayDay }}</view>
         <view class="month-year">{{ todayMonthYear }}</view>
+        <view class="date-change-tip">
+          <t-icon name="chevron-down" size="20rpx" color="#999" />
+          <text>切换日期</text>
+        </view>
       </view>
       <view class="quote-box">
-        <view class="quote-text">“感受当下的每一份情绪，都是成长的礼物。”</view>
+        <view class="quote-text">"感受当下的每一份情绪，都是成长的礼物。"</view>
       </view>
     </view>
 
@@ -117,12 +133,23 @@
           disabled="{{ !selectedMood }}"
           t-class="submit-btn"
         >
-          封存这份感受
+          {{ isRecordDateToday ? '封存这份感受' : '补录情绪记录' }}
         </t-button>
       </view>
     </view>
 
     <t-divider content="已经到底了" t-class="record-divider" dashed />
+
+    <!-- 记录日期选择弹窗 -->
+    <t-calendar
+      visible="{{ showRecordCalendar }}"
+      value="{{ recordDate }}"
+      min-date="{{ recordMinDate }}"
+      max-date="{{ recordMaxDate }}"
+      bind:confirm="onRecordDateConfirm"
+      bind:close="onRecordCalendarToggle"
+      title="选择记录日期"
+    />
   </view>
 
   <!-- 2. 历史情绪内容区 -->

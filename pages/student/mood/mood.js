@@ -11,6 +11,12 @@ Page({
     isSubmitting: false,
     historyRecords: [],
     isRefreshing: false,
+    recordDate: "",
+    recordDateStr: "",
+    isRecordDateToday: true,
+    showRecordCalendar: false,
+    recordMinDate: 0,
+    recordMaxDate: 0,
     moodOptions: [
       {
         type: "happy",
@@ -83,10 +89,9 @@ Page({
       navbarHeight: app.globalData.navbarHeight,
     });
 
-    this.updateDate();
+    this.initRecordDate();
     console.log("Mood page onLoad options:", options);
 
-    // 支持通过 activeTab 值进入 ("record" 或 "history")
     const targetTab = options.activeTab || "record";
 
     this.setData(
@@ -94,14 +99,37 @@ Page({
         activeTab: targetTab,
       },
       () => {
-        // 无论进入哪个 Tab 都初始化一下历史记录
         this.fetchHistory();
       },
     );
   },
 
-  updateDate() {
+  initRecordDate() {
     const now = new Date();
+    const todayStr = this.formatDateStr(now);
+
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const dateDisplay = this.getDateDisplayObj(todayStr);
+
+    this.setData({
+      todayDay: dateDisplay.day,
+      todayMonthYear: dateDisplay.monthYear,
+      recordDate: todayStr,
+      recordDateStr: "今天",
+      isRecordDateToday: true,
+      recordMinDate: sevenDaysAgo.getTime(),
+      recordMaxDate: todayEnd.getTime(),
+    });
+  },
+
+  getDateDisplayObj(dateStr) {
+    const date = new Date(dateStr);
     const months = [
       "Jan",
       "Feb",
@@ -116,10 +144,102 @@ Page({
       "Nov",
       "Dec",
     ];
-    this.setData({
-      todayDay: now.getDate().toString().padStart(2, "0"),
-      todayMonthYear: `${months[now.getMonth()]} . ${now.getFullYear()}`,
-    });
+    return {
+      day: date.getDate().toString().padStart(2, "0"),
+      monthYear: `${months[date.getMonth()]} . ${date.getFullYear()}`,
+    };
+  },
+
+  formatDateStr(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  },
+
+  formatRecordDateDisplay(dateStr) {
+    const today = this.formatDateStr(new Date());
+    if (dateStr === today) {
+      return "今天";
+    }
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (dateStr === this.formatDateStr(yesterday)) {
+      return "昨天";
+    }
+    const date = new Date(dateStr);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+    return `${month}月${day}日 ${dayNames[date.getDay()]}`;
+  },
+
+  onRecordCalendarToggle() {
+    this.setData({ showRecordCalendar: !this.data.showRecordCalendar });
+  },
+
+  onRecordDateConfirm(e) {
+    const { value } = e.detail;
+    const date = new Date(value);
+    const dateStr = this.formatDateStr(date);
+
+    if (!this.isValidRecordDate(dateStr)) {
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "只能补录最近 7 天内的情绪哦",
+        theme: "warning",
+        direction: "column",
+      });
+      return;
+    }
+
+    const today = this.formatDateStr(new Date());
+    const isToday = dateStr === today;
+    const dateDisplay = this.getDateDisplayObj(dateStr);
+
+    this.setData(
+      {
+        todayDay: dateDisplay.day,
+        todayMonthYear: dateDisplay.monthYear,
+        recordDate: dateStr,
+        recordDateStr: this.formatRecordDateDisplay(dateStr),
+        isRecordDateToday: isToday,
+        showRecordCalendar: false,
+      },
+      () => {
+        this.checkExistingRecord(dateStr);
+      },
+    );
+  },
+
+  isValidRecordDate(dateStr) {
+    const date = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const target = new Date(dateStr);
+    target.setHours(0, 0, 0, 0);
+
+    return target.getTime() >= sevenDaysAgo.getTime() && target.getTime() <= today.getTime();
+  },
+
+  checkExistingRecord(dateStr) {
+    const { allHistoryRecords } = this.data;
+    const hasRecord = allHistoryRecords.some((item) => item.dateKey === dateStr);
+    if (hasRecord) {
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "这一天已经记录过啦，继续记录会追加一条哦",
+        theme: "warning",
+        direction: "column",
+      });
+    }
   },
 
   onTabChange(e) {
@@ -140,18 +260,25 @@ Page({
         const moodInfo =
           this.data.moodOptions.find((m) => m.type === item.mood) || {};
 
-        // 格式化日期 YYYY-MM-DD 用于筛选
         let dateKey = "";
-        let dateStr = "";
+        let dateLabel = "";
         let timeStr = "";
-        if (item.createTime) {
+
+        if (item.dateStr) {
+          dateKey = item.dateStr;
+          const [year, month, day] = item.dateStr.split("-");
+          dateLabel = `${parseInt(month, 10)}月${parseInt(day, 10)}日`;
+        } else if (item.createTime) {
           const date = new Date(item.createTime);
           const year = date.getFullYear();
           const month = (date.getMonth() + 1).toString().padStart(2, "0");
           const day = date.getDate().toString().padStart(2, "0");
           dateKey = `${year}-${month}-${day}`;
-          dateStr = `${month}月${day}日`;
+          dateLabel = `${month}月${day}日`;
+        }
 
+        if (item.createTime) {
+          const date = new Date(item.createTime);
           const hours = date.getHours().toString().padStart(2, "0");
           const minutes = date.getMinutes().toString().padStart(2, "0");
           timeStr = `${hours}:${minutes}`;
@@ -163,7 +290,7 @@ Page({
           label: moodInfo.label || "未知",
           color: moodInfo.color || "#999",
           timeStr,
-          dateStr,
+          dateStr: dateLabel,
           dateKey,
         };
       });
@@ -207,6 +334,9 @@ Page({
         }
         this.filterHistoryByDate();
         this.computeWeeklyReport();
+        if (this.data.recordDate) {
+          this.checkExistingRecord(this.data.recordDate);
+        }
       });
     } catch (err) {
       console.error("获取心情记录失败", err);
@@ -259,9 +389,10 @@ Page({
     const rangeLabel = `${(weekStart.getMonth() + 1).toString().padStart(2, "0")}月${weekStart.getDate().toString().padStart(2, "0")}日 - ${(weekEnd.getMonth() + 1).toString().padStart(2, "0")}月${weekEnd.getDate().toString().padStart(2, "0")}日`;
 
     const weekRecords = allHistoryRecords.filter((r) => {
-      if (!r.createTime) return false;
-      const t = new Date(r.createTime).getTime();
-      return t >= sevenDaysAgo.getTime() && t <= today.getTime();
+      if (!r.dateKey) return false;
+      const d = new Date(r.dateKey);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() >= sevenDaysAgo.getTime() && d.getTime() <= today.getTime();
     });
 
     const dayMap = {};
@@ -422,28 +553,41 @@ Page({
       return;
     }
 
+    if (!this.isValidRecordDate(this.data.recordDate)) {
+      Toast({
+        context: this,
+        selector: "#t-toast",
+        message: "只能补录最近 7 天内的情绪哦",
+        theme: "warning",
+        direction: "column",
+      });
+      return;
+    }
+
     this.setData({ isSubmitting: true });
 
     try {
       await moodService.add(
         this.data.selectedMood,
         this.data.content,
-        this.getLocalDateStr(),
+        this.data.recordDate,
       );
+
+      const successMsg = this.data.isRecordDateToday
+        ? "已封存这份感受"
+        : `已补录 ${this.data.recordDateStr} 的情绪`;
 
       Toast({
         context: this,
         selector: "#t-toast",
-        message: "已封存这份感受",
+        message: successMsg,
         theme: "success",
         direction: "column",
       });
 
-      // 清空状态并跳转到历史页
       this.setData({
         selectedMood: "",
         content: "",
-        activeTab: "record",
       });
       this.fetchHistory();
     } catch (err) {
@@ -460,8 +604,4 @@ Page({
     }
   },
 
-  getLocalDateStr() {
-    const now = new Date();
-    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-  },
 });

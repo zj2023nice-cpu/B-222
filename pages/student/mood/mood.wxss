@@ -46,13 +46,58 @@ page {
   animation: fadeIn 0.4s ease-out;
 }
 
-/* 顶部日期与金句 */
-.header-section {
+/* 补录日期提示条 */
+.record-date-banner {
   display: flex;
   align-items: center;
-  margin-bottom: 48rpx;
+  justify-content: space-between;
+  background: linear-gradient(90deg, rgba(0, 82, 217, 0.08) 0%, rgba(0, 82, 217, 0.02) 100%);
+  border: 2rpx solid rgba(0, 82, 217, 0.15);
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
 }
 
+.record-date-banner.show {
+  opacity: 1;
+  max-height: 200rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.banner-text {
+  font-size: 26rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.banner-date {
+  color: #0052d9;
+  font-weight: 600;
+}
+
+.banner-action {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.action-text {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 日期切换提示 */
 .date-box {
   display: flex;
   flex-direction: column;
@@ -62,6 +107,16 @@ page {
   border-radius: 24rpx;
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
   margin-right: 24rpx;
+  cursor: pointer;
+}
+
+.date-change-tip {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  margin-top: 8rpx;
+  font-size: 20rpx;
+  color: #bbb;
 }
 
 .date-box .day {

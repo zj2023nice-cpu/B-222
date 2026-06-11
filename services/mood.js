@@ -17,7 +17,8 @@ async function call(action, data = {}) {
 }
 
 const moodService = {
-  add: (mood, content, dateStr) => call("add", { mood, content, dateStr }),
+  add: (mood, content, dateStr, createTimestamp) =>
+    call("add", { mood, content, dateStr, createTimestamp }),
   fetchHistory: () => call("fetch_history"),
 };
 
