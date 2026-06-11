@@ -1,6 +1,7 @@
 import createCall from "./cloud-call";
+import { CLOUD_FUNCTIONS } from "../config/index";
 
-const call = createCall("User", "user_service");
+const call = createCall("User", CLOUD_FUNCTIONS.USER);
 
 const userService = {
   getStats: (role) => call("get_stats", { role }),

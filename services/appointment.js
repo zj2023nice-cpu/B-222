@@ -1,6 +1,7 @@
 import createCall from "./cloud-call";
+import { CLOUD_FUNCTIONS } from "../config/index";
 
-const call = createCall("Appointment", "appointment_service");
+const call = createCall("Appointment", CLOUD_FUNCTIONS.APPOINTMENT);
 
 const appointmentService = {
   getConsultants: (availableDates) =>

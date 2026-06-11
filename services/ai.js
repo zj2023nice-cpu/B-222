@@ -1,4 +1,6 @@
-const CLOUD_FUNCTION_NAME = "deepseekChat";
+import { CLOUD_FUNCTIONS } from "../config/index";
+
+const CLOUD_FUNCTION_NAME = CLOUD_FUNCTIONS.AI_CHAT;
 const STORAGE_KEY = "ai_chat_sessions";
 
 const aiService = {

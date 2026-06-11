@@ -1,6 +1,7 @@
 import createCall from "./cloud-call";
+import { CLOUD_FUNCTIONS } from "../config/index";
 
-const call = createCall("Article", "article_service");
+const call = createCall("Article", CLOUD_FUNCTIONS.ARTICLE);
 
 const articleService = {
   getList: (keyword) => call("get_list", { keyword }),

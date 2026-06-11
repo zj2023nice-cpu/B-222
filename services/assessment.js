@@ -1,8 +1,9 @@
 import createCall from "./cloud-call";
 import { getResultConfigByScore } from "../utils/constants";
+import { CLOUD_FUNCTIONS } from "../config/index";
 import articleService from "./article";
 
-const call = createCall("Assessment", "assessment_service");
+const call = createCall("Assessment", CLOUD_FUNCTIONS.ASSESSMENT);
 
 const assessmentService = {
   getList: () => call("get_list"),

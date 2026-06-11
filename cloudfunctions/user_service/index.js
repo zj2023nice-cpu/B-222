@@ -3,6 +3,8 @@ cloud.init({ env: cloud.DYNAMIC_TYPE_CACHEREAD });
 const db = cloud.database();
 const _ = db.command;
 
+const { ROLES, COLLECTIONS, getCollectionByRole } = require("./_shared/index");
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   
@@ -50,9 +52,7 @@ async function adminGetUserInfo(openid, { userId, role }) {
       return { code: 403, msg: "Permission denied" };
     }
 
-    let collectionName = "users";
-    if (role === "consultant") collectionName = "consultants";
-    else if (role === "admin") collectionName = "admins";
+    const collectionName = getCollectionByRole(role);
 
     const res = await db.collection(collectionName).doc(userId).get();
     if (!res.data) {
@@ -64,13 +64,13 @@ async function adminGetUserInfo(openid, { userId, role }) {
 
     // Count successful consultations
     let query = { status: "completed" };
-    if (role === "consultant") {
+    if (role === ROLES.CONSULTANT) {
       query.consultantOpenid = targetOpenid;
     } else {
       query._openid = targetOpenid;
     }
 
-    const apptCount = await db.collection("appointments").where(query).count();
+    const apptCount = await db.collection(COLLECTIONS.APPOINTMENTS).where(query).count();
 
     return {
       code: 0,
@@ -92,13 +92,13 @@ async function adminUpdateConsultant(openid, data) {
 
     const { _id, name, title, expertise, introduction, avatar } = data;
 
-    const userRes = await db.collection("consultants").doc(_id).get();
+    const userRes = await db.collection(COLLECTIONS.CONSULTANTS).doc(_id).get();
     if (userRes.data && userRes.data.isSystem) {
       return { code: 403, msg: "系统内置成员，禁止修改" };
     }
 
     await db
-      .collection("consultants")
+      .collection(COLLECTIONS.CONSULTANTS)
       .doc(_id)
       .update({
         data: {
@@ -119,7 +119,7 @@ async function adminUpdateConsultant(openid, data) {
 
 async function isAdmin(openid) {
   const count = await db
-    .collection("admins")
+    .collection(COLLECTIONS.ADMINS)
     .where({ _openid: openid })
     .count();
   return count.total > 0;
@@ -134,7 +134,7 @@ async function getUserList(
       return { code: 403, msg: "Permission denied" };
     }
 
-    const collectionName = queryRole === "consultant" ? "consultants" : "users";
+    const collectionName = queryRole === ROLES.CONSULTANT ? COLLECTIONS.CONSULTANTS : COLLECTIONS.USERS;
     let query = {};
     if (keyword) {
       query.name = db.RegExp({
@@ -172,7 +172,7 @@ async function adminDeleteUser(openid, { targetId, targetRole }) {
     }
 
     const collectionName =
-      targetRole === "consultant" ? "consultants" : "users";
+      targetRole === ROLES.CONSULTANT ? COLLECTIONS.CONSULTANTS : COLLECTIONS.USERS;
     const userRes = await db.collection(collectionName).doc(targetId).get();
 
     if (!userRes.data) {
@@ -194,9 +194,7 @@ async function adminDeleteUser(openid, { targetId, targetRole }) {
 
 async function performDelete(targetOpenid, role) {
   try {
-    let collectionName = "users";
-    if (role === "consultant") collectionName = "consultants";
-    else if (role === "admin") collectionName = "admins";
+    const collectionName = getCollectionByRole(role);
 
     // 1. 获取用户信息以拿到头像文件ID
     const userRes = await db
@@ -209,14 +207,14 @@ async function performDelete(targetOpenid, role) {
     // 2. 级联删除各业务表数据
     const tasks = [
       db.collection(collectionName).where({ _openid: targetOpenid }).remove(),
-      db.collection("appointments").where({ _openid: targetOpenid }).remove(),
-      db.collection("mood_diaries").where({ _openid: targetOpenid }).remove(),
+      db.collection(COLLECTIONS.APPOINTMENTS).where({ _openid: targetOpenid }).remove(),
+      db.collection(COLLECTIONS.MOOD_DIARIES).where({ _openid: targetOpenid }).remove(),
       db
-        .collection("user_collections")
+        .collection(COLLECTIONS.USER_COLLECTIONS)
         .where({ _openid: targetOpenid })
         .remove(),
       db
-        .collection("student_test_records")
+        .collection(COLLECTIONS.STUDENT_TEST_RECORDS)
         .where({ _openid: targetOpenid })
         .remove(),
     ];
@@ -243,11 +241,11 @@ async function performDelete(targetOpenid, role) {
 
 async function getStats(openid, eventData = {}) {
   try {
-    const role = eventData.role || "user";
+    const role = eventData.role || ROLES.USER;
 
-    if (role === "consultant") {
+    if (role === ROLES.CONSULTANT) {
       const consultantRes = await db
-        .collection("consultants")
+        .collection(COLLECTIONS.CONSULTANTS)
         .where({ _openid: openid })
         .get();
 
@@ -255,11 +253,11 @@ async function getStats(openid, eventData = {}) {
         consultantRes.data.length > 0 ? consultantRes.data[0]._id : null;
 
       const pendingCount = await db
-        .collection("appointments")
+        .collection(COLLECTIONS.APPOINTMENTS)
         .where({ consultantId, status: "booked" })
         .count();
       const totalCount = await db
-        .collection("appointments")
+        .collection(COLLECTIONS.APPOINTMENTS)
         .where({ consultantId, status: _.in(["confirmed", "completed"]) })
         .count();
       return {
@@ -277,15 +275,15 @@ async function getStats(openid, eventData = {}) {
 
     // Role is student / user
     const apptCount = await db
-      .collection("appointments")
+      .collection(COLLECTIONS.APPOINTMENTS)
       .where({ _openid: openid, status: "completed" })
       .count();
     const collectionCount = await db
-      .collection("user_collections")
+      .collection(COLLECTIONS.USER_COLLECTIONS)
       .where({ _openid: openid })
       .count();
     const moodCount = await db
-      .collection("mood_diaries")
+      .collection(COLLECTIONS.MOOD_DIARIES)
       .where({ _openid: openid })
       .count();
 
@@ -317,9 +315,7 @@ async function register(openid, data) {
     const { role, name, avatar } = data;
 
     // Determine collection based on role
-    let collectionName = "users";
-    if (role === "consultant") collectionName = "consultants";
-    else if (role === "admin") collectionName = "admins";
+    const collectionName = getCollectionByRole(role);
 
     // Check duplicate name in the target collection
     const nameCheck = await db.collection(collectionName).where({ name }).get();
@@ -346,12 +342,10 @@ async function register(openid, data) {
 async function checkUser(openid, data) {
   try {
     const { role } = data;
-    let collectionName = "users";
-    if (role === "consultant") collectionName = "consultants";
-    else if (role === "admin") collectionName = "admins";
+    const collectionName = getCollectionByRole(role);
 
     const query = { _openid: openid };
-    if (collectionName === "users") {
+    if (collectionName === COLLECTIONS.USERS) {
       query.role = role;
     }
 
@@ -372,7 +366,7 @@ async function updateConsultant(openid, data) {
   try {
     const { name, title, introduction, expertise, avatar } = data;
     const res = await db
-      .collection("consultants")
+      .collection(COLLECTIONS.CONSULTANTS)
       .where({ _openid: openid })
       .get();
 
@@ -386,11 +380,11 @@ async function updateConsultant(openid, data) {
     };
 
     if (res.data.length > 0) {
-      await db.collection("consultants").doc(res.data[0]._id).update({
+      await db.collection(COLLECTIONS.CONSULTANTS).doc(res.data[0]._id).update({
         data: payload,
       });
     } else {
-      await db.collection("consultants").add({
+      await db.collection(COLLECTIONS.CONSULTANTS).add({
         data: {
           ...payload,
           _openid: openid,
@@ -410,9 +404,7 @@ async function adminUpdateUser(openid, data) {
     }
 
     const { _id, role, name, avatar, ...rest } = data;
-    let collectionName = "users";
-    if (role === "consultant") collectionName = "consultants";
-    else if (role === "admin") collectionName = "admins";
+    const collectionName = getCollectionByRole(role);
 
     const userRes = await db.collection(collectionName).doc(_id).get();
     if (userRes.data && userRes.data.isSystem) {
@@ -426,7 +418,7 @@ async function adminUpdateUser(openid, data) {
     };
 
     // If consultant, add consultant-specific fields
-    if (role === "consultant") {
+    if (role === ROLES.CONSULTANT) {
       updateData.title = rest.title;
       updateData.expertise = rest.expertise;
       updateData.introduction = rest.introduction;

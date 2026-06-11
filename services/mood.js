@@ -1,6 +1,7 @@
 import createCall from "./cloud-call";
+import { CLOUD_FUNCTIONS } from "../config/index";
 
-const call = createCall("Mood", "mood_service");
+const call = createCall("Mood", CLOUD_FUNCTIONS.MOOD);
 
 const moodService = {
   add: (mood, content, dateStr, createTimestamp) =>
