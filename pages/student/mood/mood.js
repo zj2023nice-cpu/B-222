@@ -306,26 +306,17 @@ Page({
       });
 
       this.setData({ allHistoryRecords: records }, () => {
-        // 动态计算可选日期范围
         if (records.length > 0) {
-          // 找到最早的记录日期（records 默认是 desc，所以最后一条通常是最早的，但用计算最稳妥）
-          const times = records
-            .filter((r) => r.createTime)
-            .map((r) => new Date(r.createTime).getTime());
+          const validKeys = records
+            .filter((r) => r.dateKey)
+            .map((r) => r.dateKey);
 
-          if (times.length > 0) {
-            const minT = Math.min(...times);
-            const earliestDate = new Date(minT);
-            const minDateTime = new Date(
-              earliestDate.getFullYear(),
-              earliestDate.getMonth(),
-              earliestDate.getDate(),
-              0,
-              0,
-              0,
-            ).getTime();
+          if (validKeys.length > 0) {
+            validKeys.sort();
+            const earliestKey = validKeys[0];
+            const [ey, em, ed] = earliestKey.split("-").map((x) => parseInt(x, 10));
+            const minDateTime = new Date(ey, em - 1, ed, 0, 0, 0, 0).getTime();
 
-            // 设置 maxDate 为今天结束 23:59:59
             const now = new Date();
             const maxDateTime = new Date(
               now.getFullYear(),
