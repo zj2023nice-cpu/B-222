@@ -41,6 +41,10 @@ Component({
       type: Object,
       value: { size: "40rpx" },
     },
+    scrollIntoView: {
+      type: String,
+      value: "",
+    },
   },
 
   methods: {

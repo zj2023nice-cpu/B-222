@@ -31,12 +31,14 @@
     showFooter="{{ articles.length > 0 }}"
     footerText="知识库已全部加载"
     emptyText="{{ emptyText }}"
+    scrollIntoView="{{ scrollIntoView }}"
     bind:refresh="onPullDownRefresh"
   >
     <view class="article-list">
       <article-card
         wx:for="{{ articles }}"
         wx:key="_id"
+        id="article-{{ item._id }}"
         article="{{ item }}"
         bind:click="navToDetail"
       />

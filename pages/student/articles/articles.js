@@ -10,6 +10,7 @@ Page({
     searchKeyword: "",
     isSearchEmpty: false,
     emptyText: "暂无相关文章",
+    scrollIntoView: "",
     imageSkeleton: [
       { width: "220rpx", height: "160rpx", borderRadius: "16rpx" },
     ],
@@ -23,13 +24,30 @@ Page({
   onLoad() {
     this._requestId = 0;
     this._searchTimer = null;
+    this._fromDetail = false;
+    this._scrollTop = 0;
+    this._navArticleId = "";
     this.fetchArticles();
   },
 
   onShow() {
-    if (!this.data.isLoading) {
+    if (this._fromDetail) {
+      this._fromDetail = false;
+      if (this._scrollTop > 0) {
+        wx.pageScrollTo({ scrollTop: this._scrollTop, duration: 0 });
+      }
+      if (this._navArticleId) {
+        this.setData({ scrollIntoView: `article-${this._navArticleId}` });
+      }
+      return;
+    }
+    if (!this.data.isLoading && !this.data.isRefreshing) {
       this.fetchArticles(this.data.searchKeyword, true);
     }
+  },
+
+  onPageScroll(e) {
+    this._scrollTop = e.scrollTop;
   },
 
   onUnload() {
@@ -125,6 +143,9 @@ Page({
     const id = article._id || article.id;
 
     if (id) {
+      this._fromDetail = true;
+      this._navArticleId = id;
+      this.setData({ scrollIntoView: "" });
       router.navigateTo({
         url: `/pages/student/articles/article-detail/article-detail?id=${id}`,
       });
@@ -132,7 +153,7 @@ Page({
   },
 
   onPullDownRefresh() {
-    this.setData({ isRefreshing: true });
+    this.setData({ isRefreshing: true, scrollIntoView: "" });
     this.fetchArticles(this.data.searchKeyword, true).then(() => {
       wx.stopPullDownRefresh();
     });
