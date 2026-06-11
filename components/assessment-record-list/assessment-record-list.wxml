@@ -95,6 +95,23 @@
             <text class="status-text">正常状态</text>
           </view>
         </view>
+
+        <view class="comparison-hint" wx:if="{{ item.comparisonHint }}">
+          <view class="hint-divider"></view>
+          <view class="hint-content">
+            <t-icon
+              name="{{ item.comparisonHint.trend === 'up' ? 'arrow-up' : item.comparisonHint.trend === 'down' ? 'arrow-down' : 'swap' }}"
+              size="28rpx"
+              color="{{ item.comparisonHint.trend === 'up' ? '#ed7b2f' : item.comparisonHint.trend === 'down' ? '#00a870' : '#999' }}"
+            />
+            <text class="hint-text {{ item.comparisonHint.trend === 'up' ? 'hint-up' : item.comparisonHint.trend === 'down' ? 'hint-down' : 'hint-stable' }}">
+              较上次{{ item.comparisonHint.scoreDiff > 0 ? '上升' : item.comparisonHint.scoreDiff < 0 ? '下降' : '持平' }}{{ Math.abs(item.comparisonHint.scoreDiff) }}分
+            </text>
+            <text class="hint-label-change" wx:if="{{ item.comparisonHint.labelChanged }}">
+              {{ item.comparisonHint.fromLabel }}→{{ item.comparisonHint.toLabel }}
+            </text>
+          </view>
+        </view>
       </view>
     </view>
   </list-view>

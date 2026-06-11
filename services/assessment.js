@@ -1,23 +1,8 @@
-const CLOUD_FUNCTION_NAME = "assessment_service";
-
-async function call(action, data = {}) {
-  try {
-    const { result } = await wx.cloud.callFunction({
-      name: CLOUD_FUNCTION_NAME,
-      data: { action, data },
-    });
-    if (result.code !== 0) {
-      throw new Error(result.msg || "服务异常");
-    }
-    return result;
-  } catch (err) {
-    console.error(`[Assessment Service Error][${action}]:`, err);
-    throw err;
-  }
-}
-
+import createCall from "./cloud-call";
 import { getResultConfigByScore } from "../utils/constants";
 import articleService from "./article";
+
+const call = createCall("Assessment", "assessment_service");
 
 const assessmentService = {
   getList: () => call("get_list"),
@@ -32,6 +17,8 @@ const assessmentService = {
   submitTest: (testData) => call("submit_test", testData),
   getStudentRecords: (searchQuery) =>
     call("get_student_records", { searchQuery }),
+  getHistoryComparison: (assessmentId) =>
+    call("get_history_comparison", { assessmentId }),
 
   getRecommendedArticles: async (score, limit = 3) => {
     const config = getResultConfigByScore(score);

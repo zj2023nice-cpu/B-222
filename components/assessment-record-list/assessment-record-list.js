@@ -62,7 +62,7 @@ Component({
           );
         }
 
-        const records = res.data.map((item) => {
+        const records = res.data.map((item, idx) => {
           let date;
           if (item.createTime && item.createTime.ms) {
             date = new Date(item.createTime.ms);
@@ -77,6 +77,30 @@ Component({
           const h = date.getHours().toString().padStart(2, "0");
           const min = date.getMinutes().toString().padStart(2, "0");
 
+          let comparisonHint = null;
+          const sameAssessmentRecords = res.data.filter(
+            (r) => r.assessmentId === item.assessmentId
+          );
+          const currentIdx = sameAssessmentRecords.findIndex(
+            (r) => r._id === item._id
+          );
+          if (currentIdx >= 0 && currentIdx < sameAssessmentRecords.length - 1) {
+            const prevRecord = sameAssessmentRecords[currentIdx + 1];
+            const scoreDiff = item.score - prevRecord.score;
+            const labelChanged = item.result !== prevRecord.result;
+            let trend = "stable";
+            if (scoreDiff > 0) trend = "up";
+            else if (scoreDiff < 0) trend = "down";
+
+            comparisonHint = {
+              scoreDiff,
+              trend,
+              labelChanged,
+              fromLabel: prevRecord.result,
+              toLabel: item.result,
+            };
+          }
+
           return {
             ...item,
             dateStr: isNaN(date.getTime())
@@ -84,6 +108,7 @@ Component({
               : `${date.getFullYear()}-${m}-${d} ${h}:${min}`,
             tagText: "自主测评",
             tagTheme: "success",
+            comparisonHint,
           };
         });
 

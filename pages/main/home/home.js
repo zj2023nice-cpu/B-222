@@ -120,6 +120,10 @@ SafePage({
   },
 
   async loadConsultantStats() {
+    if (this._badgeRefreshing) {
+      return;
+    }
+    this._badgeRefreshing = true;
     try {
       const { data } = await appointmentService.getConsultantStats();
       this.setData({ consultantStats: data || {} });
@@ -129,6 +133,8 @@ SafePage({
       this._applyBadge("预约管理", pending);
     } catch (err) {
       console.error("[Home] loadConsultantStats error:", err);
+    } finally {
+      this._badgeRefreshing = false;
     }
   },
 
@@ -142,6 +148,10 @@ SafePage({
   },
 
   async loadAdminStats() {
+    if (this._badgeRefreshing) {
+      return;
+    }
+    this._badgeRefreshing = true;
     try {
       const { data } = await appointmentService.adminGetStats();
       this.setData({ adminStats: data || {} });
@@ -151,6 +161,8 @@ SafePage({
       this._applyBadge("咨询管理", pending);
     } catch (err) {
       console.error("[Home] loadAdminStats error:", err);
+    } finally {
+      this._badgeRefreshing = false;
     }
   },
 
@@ -240,9 +252,11 @@ SafePage({
       if (role === "admin") {
         const { data } = await appointmentService.adminGetStats();
         count = (data && data.pending) || 0;
+        this.setData({ adminStats: data || {} });
       } else if (role === "consultant") {
         const { data } = await appointmentService.getConsultantStats();
         count = (data && data.pending) || 0;
+        this.setData({ consultantStats: data || {} });
       }
 
       this._cachedBadge = { role, tabText, count };

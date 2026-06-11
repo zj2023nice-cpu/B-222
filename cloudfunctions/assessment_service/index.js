@@ -33,6 +33,8 @@ exports.main = async (event, context) => {
       return await submitTest(OPENID, data); // Student taking test
     case "get_student_records":
       return await getStudentRecords(OPENID, data);
+    case "get_history_comparison":
+      return await getHistoryComparison(OPENID, data);
     default:
       return { code: -1, msg: "Unknown action" };
   }
@@ -278,6 +280,80 @@ async function getStudentRecords(openid, data) {
       .orderBy("createTime", "desc")
       .get();
     return { code: 0, data: res.data };
+  } catch (err) {
+    return { code: 500, msg: err.message };
+  }
+}
+
+async function getHistoryComparison(openid, data) {
+  try {
+    const { assessmentId } = data;
+    if (!assessmentId) {
+      return { code: -1, msg: "assessmentId is required" };
+    }
+
+    const res = await db
+      .collection("student_test_records")
+      .where({
+        _openid: openid,
+        assessmentId: assessmentId,
+      })
+      .orderBy("createTime", "desc")
+      .limit(2)
+      .get();
+
+    const records = res.data || [];
+    if (records.length === 0) {
+      return { code: 0, data: { hasPrevious: false } };
+    }
+
+    const current = records[0];
+    const previous = records.length > 1 ? records[1] : null;
+
+    if (!previous) {
+      return {
+        code: 0,
+        data: {
+          hasPrevious: false,
+          current: {
+            score: current.score,
+            result: current.result,
+            createTime: current.createTime,
+          },
+        },
+      };
+    }
+
+    const scoreDiff = current.score - previous.score;
+    const labelChanged = current.result !== previous.result;
+
+    let trend = "stable";
+    if (scoreDiff > 0) trend = "up";
+    else if (scoreDiff < 0) trend = "down";
+
+    return {
+      code: 0,
+      data: {
+        hasPrevious: true,
+        current: {
+          score: current.score,
+          result: current.result,
+          createTime: current.createTime,
+        },
+        previous: {
+          score: previous.score,
+          result: previous.result,
+          createTime: previous.createTime,
+        },
+        comparison: {
+          scoreDiff,
+          labelChanged,
+          fromLabel: previous.result,
+          toLabel: current.result,
+          trend,
+        },
+      },
+    };
   } catch (err) {
     return { code: 500, msg: err.message };
   }

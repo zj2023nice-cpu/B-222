@@ -1,20 +1,6 @@
-const CLOUD_FUNCTION_NAME = "article_service";
+import createCall from "./cloud-call";
 
-async function call(action, data = {}) {
-  try {
-    const { result } = await wx.cloud.callFunction({
-      name: CLOUD_FUNCTION_NAME,
-      data: { action, data },
-    });
-    if (result.code !== 0) {
-      throw new Error(result.msg || "服务异常");
-    }
-    return result;
-  } catch (err) {
-    console.error(`[Article Service Error][${action}]:`, err);
-    throw err;
-  }
-}
+const call = createCall("Article", "article_service");
 
 const articleService = {
   getList: (keyword) => call("get_list", { keyword }),
@@ -29,7 +15,6 @@ const articleService = {
   getRecommendedByAssessment: (params) =>
     call("get_recommended_by_assessment", params),
 
-  // 管理端接口
   adminGetArticles: (params) => call("admin_get_list", params),
   adminCreateArticle: (data) => call("admin_create", data),
   adminUpdateArticle: (data) => call("admin_update", data),

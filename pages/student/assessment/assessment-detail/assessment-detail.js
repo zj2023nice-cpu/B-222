@@ -47,6 +47,7 @@ SafePage({
     resultDescription: "",
     recommendedArticles: [],
     articlesLoading: false,
+    historyComparison: null,
   },
 
   onLoad(options) {
@@ -131,6 +132,7 @@ SafePage({
       });
 
       this.loadRecommendedArticles(normalizedScore);
+      this.loadHistoryComparison();
     } catch (err) {
       console.error("提交失败", err);
       Toast({
@@ -154,6 +156,67 @@ SafePage({
       console.error("获取推荐文章失败:", err);
     } finally {
       this.setData({ articlesLoading: false });
+    }
+  },
+
+  async loadHistoryComparison() {
+    try {
+      const { id } = this.data;
+      const res = await assessmentService.getHistoryComparison(id);
+      const comparisonData = res.data;
+
+      if (comparisonData.hasPrevious) {
+        const comp = comparisonData.comparison;
+        const scoreDiff = comp.scoreDiff;
+        let scoreChangeText = "";
+        if (scoreDiff > 0) {
+          scoreChangeText = "+" + scoreDiff + "分";
+        } else if (scoreDiff < 0) {
+          scoreChangeText = scoreDiff + "分";
+        } else {
+          scoreChangeText = "持平";
+        }
+
+        let labelChangeText = "";
+        if (comp.labelChanged) {
+          labelChangeText = comp.fromLabel + " → " + comp.toLabel;
+        }
+
+        let summaryText = "";
+        if (scoreDiff > 0) {
+          summaryText = "相比上次，分数上升了" + Math.abs(scoreDiff) + "分";
+        } else if (scoreDiff < 0) {
+          summaryText = "相比上次，分数下降了" + Math.abs(scoreDiff) + "分";
+        } else {
+          summaryText = "相比上次，分数没有变化";
+        }
+        if (comp.labelChanged) {
+          summaryText += "，等级从「" + comp.fromLabel + "」变为「" + comp.toLabel + "」";
+        }
+
+        this.setData({
+          historyComparison: {
+            hasPrevious: true,
+            previousScore: comparisonData.previous.score,
+            previousResult: comparisonData.previous.result,
+            scoreDiff,
+            scoreChangeText,
+            labelChanged: comp.labelChanged,
+            labelChangeText,
+            trend: comp.trend,
+            summaryText,
+          },
+        });
+      } else {
+        this.setData({
+          historyComparison: { hasPrevious: false },
+        });
+      }
+    } catch (err) {
+      console.error("获取历史对比失败:", err);
+      this.setData({
+        historyComparison: { hasPrevious: false },
+      });
     }
   },
 

@@ -82,6 +82,47 @@
       </view>
     </view>
 
+    <view class="comparison-section" wx:if="{{ historyComparison }}">
+      <view class="comparison-title">历史对比</view>
+
+      <view wx:if="{{ historyComparison.hasPrevious }}" class="comparison-card">
+        <view class="comparison-row">
+          <view class="comparison-item">
+            <text class="comparison-label">上次得分</text>
+            <text class="comparison-score prev-score">{{ historyComparison.previousScore }}</text>
+          </view>
+          <view class="comparison-arrow">
+            <t-icon
+              name="{{ historyComparison.trend === 'up' ? 'arrow-up' : historyComparison.trend === 'down' ? 'arrow-down' : 'swap' }}"
+              size="40rpx"
+              color="{{ historyComparison.trend === 'up' ? '#ed7b2f' : historyComparison.trend === 'down' ? '#00a870' : '#999' }}"
+            />
+          </view>
+          <view class="comparison-item">
+            <text class="comparison-label">本次得分</text>
+            <text class="comparison-score curr-score">{{ normalizedScore }}</text>
+          </view>
+        </view>
+
+        <view class="comparison-changes">
+          <view class="change-badge {{ historyComparison.trend === 'up' ? 'badge-up' : historyComparison.trend === 'down' ? 'badge-down' : 'badge-stable' }}">
+            <text>{{ historyComparison.scoreChangeText }}</text>
+          </view>
+          <view class="change-badge badge-label" wx:if="{{ historyComparison.labelChanged }}">
+            <text>{{ historyComparison.labelChangeText }}</text>
+          </view>
+        </view>
+
+        <view class="comparison-summary">
+          <text>{{ historyComparison.summaryText }}</text>
+        </view>
+      </view>
+
+      <view wx:else class="comparison-empty">
+        <text>这是你第一次做此测评，暂无历史数据对比</text>
+      </view>
+    </view>
+
     <view class="recommend-section">
       <view class="recommend-title">为你推荐</view>
 

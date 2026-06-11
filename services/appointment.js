@@ -1,23 +1,6 @@
-const CLOUD_FUNCTION_NAME = "appointment_service";
+import createCall from "./cloud-call";
 
-async function call(action, params = {}) {
-  try {
-    const { result } = await wx.cloud.callFunction({
-      name: CLOUD_FUNCTION_NAME,
-      data: {
-        action,
-        data: params,
-      },
-    });
-    if (result.code !== 0) {
-      throw new Error(result.msg || "服务异常");
-    }
-    return result;
-  } catch (err) {
-    console.error(`[Appointment Service Error][${action}]:`, err);
-    throw err;
-  }
-}
+const call = createCall("Appointment", "appointment_service");
 
 const appointmentService = {
   getConsultants: (availableDates) =>
