@@ -25,7 +25,6 @@ Page({
     this._requestId = 0;
     this._searchTimer = null;
     this._fromDetail = false;
-    this._scrollTop = 0;
     this._navArticleId = "";
     this.fetchArticles();
   },
@@ -33,9 +32,6 @@ Page({
   onShow() {
     if (this._fromDetail) {
       this._fromDetail = false;
-      if (this._scrollTop > 0) {
-        wx.pageScrollTo({ scrollTop: this._scrollTop, duration: 0 });
-      }
       if (this._navArticleId) {
         this.setData({ scrollIntoView: `article-${this._navArticleId}` });
       }
@@ -44,10 +40,6 @@ Page({
     if (!this.data.isLoading && !this.data.isRefreshing) {
       this.fetchArticles(this.data.searchKeyword, true);
     }
-  },
-
-  onPageScroll(e) {
-    this._scrollTop = e.scrollTop;
   },
 
   onUnload() {
@@ -126,7 +118,7 @@ Page({
       this._searchTimer = null;
     }
 
-    this.setData({ searchKeyword: keyword });
+    this.setData({ searchKeyword: keyword, scrollIntoView: "" });
 
     if (keyword.trim().length === 0) {
       this.fetchArticles("");
