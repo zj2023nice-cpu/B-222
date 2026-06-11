@@ -5,6 +5,8 @@ import appointmentService from "../../../services/appointment";
 import assessmentService from "../../../services/assessment";
 import { APPOINTMENT_STATUS_MAP } from "../../../utils/constants";
 
+const BADGE_THROTTLE_MS = 30 * 1000;
+
 const ROLE_CONFIG = {
   user: {
     pageTitle: "我的待办",
@@ -61,6 +63,9 @@ SafePage({
   },
 
   _roleKey: null,
+  _badgeLastRefreshTime: 0,
+  _badgeRefreshing: false,
+  _cachedBadge: null,
 
   onShow() {
     this._initRole();
@@ -118,6 +123,10 @@ SafePage({
     try {
       const { data } = await appointmentService.getConsultantStats();
       this.setData({ consultantStats: data || {} });
+      const pending = (data && data.pending) || 0;
+      this._cachedBadge = { role: "consultant", tabText: "预约管理", count: pending };
+      this._badgeLastRefreshTime = Date.now();
+      this._applyBadge("预约管理", pending);
     } catch (err) {
       console.error("[Home] loadConsultantStats error:", err);
     }
@@ -136,6 +145,10 @@ SafePage({
     try {
       const { data } = await appointmentService.adminGetStats();
       this.setData({ adminStats: data || {} });
+      const pending = (data && data.pending) || 0;
+      this._cachedBadge = { role: "admin", tabText: "咨询管理", count: pending };
+      this._badgeLastRefreshTime = Date.now();
+      this._applyBadge("咨询管理", pending);
     } catch (err) {
       console.error("[Home] loadAdminStats error:", err);
     }
@@ -190,28 +203,58 @@ SafePage({
     }
   },
 
+  _applyBadge(tabText, count) {
+    const tabBar = this.getTabBar();
+    if (tabBar && typeof tabBar.setBadge === "function") {
+      tabBar.setBadge(tabText, count);
+    }
+  },
+
   async refreshTabBadges() {
     const userInfo = wx.getStorageSync("userInfo");
-    if (!userInfo) return;
+    if (!userInfo || userInfo.role === "user") return;
 
-    wx.nextTick(async () => {
-      const tabBar = this.getTabBar();
-      if (!tabBar || typeof tabBar.setBadge !== "function") return;
+    const role = userInfo.role;
+    const tabText = role === "admin" ? "咨询管理" : "预约管理";
+    const now = Date.now();
 
-      try {
-        if (userInfo.role === "admin") {
-          const { data } = await appointmentService.adminGetStats();
-          tabBar.setBadge("咨询管理", data.pending || 0);
-        } else if (userInfo.role === "consultant") {
-          const { data } = await appointmentService.getConsultantAppts();
-          const pendingCount = (data || []).filter(
-            (i) => i.status === "booked"
-          ).length;
-          tabBar.setBadge("预约管理", pendingCount);
-        }
-      } catch (err) {
-        console.error("Refresh tab badges error:", err);
+    if (now - this._badgeLastRefreshTime < BADGE_THROTTLE_MS) {
+      if (this._cachedBadge && this._cachedBadge.role === role) {
+        this._applyBadge(this._cachedBadge.tabText, this._cachedBadge.count);
       }
-    });
+      return;
+    }
+
+    if (this._badgeRefreshing) {
+      if (this._cachedBadge && this._cachedBadge.role === role) {
+        this._applyBadge(this._cachedBadge.tabText, this._cachedBadge.count);
+      }
+      return;
+    }
+
+    this._badgeRefreshing = true;
+
+    try {
+      let count = 0;
+
+      if (role === "admin") {
+        const { data } = await appointmentService.adminGetStats();
+        count = (data && data.pending) || 0;
+      } else if (role === "consultant") {
+        const { data } = await appointmentService.getConsultantStats();
+        count = (data && data.pending) || 0;
+      }
+
+      this._cachedBadge = { role, tabText, count };
+      this._badgeLastRefreshTime = Date.now();
+      this._applyBadge(tabText, count);
+    } catch (err) {
+      console.error("[Home] refreshTabBadges error:", err);
+      if (this._cachedBadge && this._cachedBadge.role === role) {
+        this._applyBadge(this._cachedBadge.tabText, this._cachedBadge.count);
+      }
+    } finally {
+      this._badgeRefreshing = false;
+    }
   },
 });
