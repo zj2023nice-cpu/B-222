@@ -6,7 +6,9 @@
       <t-search
         placeholder="搜索心理学知识..."
         shape="round"
+        value="{{ searchKeyword }}"
         bind:change="onSearchChange"
+        bind:clear="onSearchChange"
       />
     </view>
   </view>
@@ -28,7 +30,7 @@
     isEmpty="{{ articles.length === 0 }}"
     showFooter="{{ articles.length > 0 }}"
     footerText="知识库已全部加载"
-    emptyText="暂无相关文章"
+    emptyText="{{ emptyText }}"
     bind:refresh="onPullDownRefresh"
   >
     <view class="article-list">

@@ -7,6 +7,9 @@ Page({
     articles: [],
     isLoading: true,
     isRefreshing: false,
+    searchKeyword: "",
+    isSearchEmpty: false,
+    emptyText: "暂无相关文章",
     imageSkeleton: [
       { width: "220rpx", height: "160rpx", borderRadius: "16rpx" },
     ],
@@ -18,18 +21,27 @@ Page({
   },
 
   onLoad() {
+    this._requestId = 0;
+    this._searchTimer = null;
     this.fetchArticles();
   },
 
   onShow() {
-    // 每次显示页面时，如果不是首次加载，也尝试刷新一次列表以保证即时性
     if (!this.data.isLoading) {
-      this.fetchArticles("", true);
+      this.fetchArticles(this.data.searchKeyword, true);
+    }
+  },
+
+  onUnload() {
+    if (this._searchTimer) {
+      clearTimeout(this._searchTimer);
+      this._searchTimer = null;
     }
   },
 
   async fetchArticles(keyword = "", silent = false) {
-    // 只有在非刷新状态且非静默加载下才显示骨架屏
+    const currentRequestId = ++this._requestId;
+
     if (!this.data.isRefreshing && !silent) {
       this.setData({ isLoading: true });
     }
@@ -37,25 +49,47 @@ Page({
     try {
       const { data } = await articleService.getList(keyword);
 
+      if (currentRequestId !== this._requestId) {
+        return;
+      }
+
       const articles = data.map((item) => ({
         ...item,
         date: this.formatDate(new Date(item.date)),
       }));
-      this.setData({ articles });
+
+      const isSearchEmpty = keyword.trim().length > 0 && articles.length === 0;
+      this.setData({
+        articles,
+        isSearchEmpty,
+        emptyText: isSearchEmpty
+          ? `没有找到与"${keyword}"相关的文章`
+          : "知识库暂无内容",
+      });
     } catch (err) {
       console.error("获取文章列表失败:", err);
+
+      if (currentRequestId !== this._requestId) {
+        return;
+      }
+
+      const msg = keyword.trim().length > 0
+        ? "搜索失败，请稍后重试"
+        : "数据加载失败，请下拉刷新重试";
       Toast({
         context: this,
         selector: "#t-toast",
-        message: "数据加载失败",
+        message: msg,
         theme: "error",
         direction: "column",
       });
     } finally {
-      this.setData({
-        isLoading: false,
-        isRefreshing: false,
-      });
+      if (currentRequestId === this._requestId) {
+        this.setData({
+          isLoading: false,
+          isRefreshing: false,
+        });
+      }
     }
   },
 
@@ -67,12 +101,26 @@ Page({
   },
 
   onSearchChange(e) {
-    const keyword = e.detail.value;
-    this.fetchArticles(keyword);
+    const keyword = e.detail.value || "";
+
+    if (this._searchTimer) {
+      clearTimeout(this._searchTimer);
+      this._searchTimer = null;
+    }
+
+    this.setData({ searchKeyword: keyword });
+
+    if (keyword.trim().length === 0) {
+      this.fetchArticles("");
+      return;
+    }
+
+    this._searchTimer = setTimeout(() => {
+      this.fetchArticles(keyword);
+    }, 300);
   },
 
   navToDetail(e) {
-    // 支持组件触发 (e.detail.article) 和直接点击 (dataset)
     const article = e.detail.article || e.currentTarget.dataset;
     const id = article._id || article.id;
 
@@ -85,7 +133,7 @@ Page({
 
   onPullDownRefresh() {
     this.setData({ isRefreshing: true });
-    this.fetchArticles().then(() => {
+    this.fetchArticles(this.data.searchKeyword, true).then(() => {
       wx.stopPullDownRefresh();
     });
   },
