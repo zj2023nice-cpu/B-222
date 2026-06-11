@@ -365,3 +365,43 @@
   color: #0052d9;
   line-height: 1.4;
 }
+
+.interrupted-section {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx dashed #ffd8b8;
+}
+
+.interrupted-tip {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-bottom: 16rpx;
+}
+
+.interrupted-tip-text {
+  font-size: 24rpx;
+  color: #e37318;
+  line-height: 1.4;
+}
+
+.retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 24rpx;
+  background: #ecf2fe;
+  border-radius: 100rpx;
+  transition: all 0.2s ease;
+}
+
+.retry-btn:active {
+  background: #d9e4fc;
+  transform: scale(0.96);
+}
+
+.retry-btn-text {
+  font-size: 26rpx;
+  color: #0052d9;
+  font-weight: 500;
+}

@@ -49,11 +49,11 @@
       <block wx:for="{{ messages }}" wx:key="id">
         <t-chat-message
           wx:if="{{ item.role === 'ai' }}"
-          class="ai-msg"
+          class="ai-msg {{ item.status === 'interrupted' ? 'msg-interrupted' : '' }}"
           role="assistant"
           placement="left"
           chat-id="{{ item.id }}"
-          status="{{ item.status || 'success' }}"
+          status="{{ item.status === 'interrupted' || item.status === 'error' ? 'error' : '' }}"
           animation="{{ item.status === 'pending' ? 'dots' : '' }}"
           name="{{ item.name }}"
           datetime="{{ item.datetime }}"
@@ -75,6 +75,30 @@
               wx:if="{{ item.content }}"
               content="{{ { type: 'markdown', data: item.content } }}"
             />
+
+            <view
+              class="interrupted-section"
+              wx:if="{{ item.status === 'interrupted' }}"
+            >
+              <view class="interrupted-tip" wx:if="{{ item.isTruncated }}">
+                <t-icon name="info-circle" size="28rpx" color="#e37318" />
+                <text class="interrupted-tip-text">内容已截断，可点击重试继续</text>
+              </view>
+              <view class="interrupted-tip" wx:else>
+                <t-icon name="info-circle" size="28rpx" color="#e37318" />
+                <text class="interrupted-tip-text">已终止思考</text>
+              </view>
+              <view
+                class="retry-btn"
+                wx:if="{{ item.isTruncated && item.content }}"
+                data-msg-id="{{ item.id }}"
+                bindtap="onRetryContinue"
+              >
+                <t-icon name="refresh" size="28rpx" color="#0052d9" />
+                <text class="retry-btn-text">重试续写</text>
+              </view>
+            </view>
+
             <view
               class="follow-up-section"
               wx:if="{{ showFollowUps && followUpQuestions.length > 0 && index === 0 && item.status === 'success' }}"

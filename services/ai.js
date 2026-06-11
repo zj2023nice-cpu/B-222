@@ -2,11 +2,14 @@ const CLOUD_FUNCTION_NAME = "deepseekChat";
 const STORAGE_KEY = "ai_chat_sessions";
 
 const aiService = {
-  async chat(messages, sessionId) {
+  async chat(messages, sessionId, continueFrom) {
     try {
-      const data = { messages };
+      const data = { messages, stream: false };
       if (sessionId) {
         data.sessionId = sessionId;
+      }
+      if (continueFrom) {
+        data.continueFrom = continueFrom;
       }
       const { result } = await wx.cloud.callFunction({
         name: CLOUD_FUNCTION_NAME,
@@ -21,6 +24,100 @@ const aiService = {
       console.error("[AI Service Error][chat]:", err);
       throw err;
     }
+  },
+
+  chatStream(messages, sessionId, continueFrom, callbacks) {
+    const { onDelta, onDone, onError } = callbacks || {};
+    let buffer = "";
+    let fullText = "";
+    let isCancelled = false;
+
+    const cancel = () => {
+      isCancelled = true;
+    };
+
+    const processLine = (line) => {
+      if (!line || !line.trim()) return;
+      try {
+        const data = JSON.parse(line.trim());
+        if (data.type === "delta" && data.content) {
+          fullText += data.content;
+          onDelta && onDelta(data.content, fullText);
+        } else if (data.type === "done") {
+          onDone && onDone({
+            success: true,
+            reply: data.fullText,
+            risk: !!data.risk,
+            crisisGuide: data.crisisGuide || null,
+            openid: data.openid,
+            sessionId: data.sessionId,
+          });
+        } else if (data.type === "error") {
+          onError && onError(new Error(data.error || "Unknown error"));
+        }
+      } catch (e) {
+        console.warn("[AI Service] Parse line error:", e, line);
+      }
+    };
+
+    (async () => {
+      try {
+        const data = { messages, stream: true };
+        if (sessionId) {
+          data.sessionId = sessionId;
+        }
+        if (continueFrom) {
+          data.continueFrom = continueFrom;
+        }
+
+        const result = await wx.cloud.callFunction({
+          name: CLOUD_FUNCTION_NAME,
+          data,
+          config: {
+            enableStreaming: true,
+          },
+        });
+
+        if (result.on) {
+          result.on("event", (event) => {
+            if (isCancelled) return;
+            const chunk =
+              typeof event.data === "string"
+                ? event.data
+                : new TextDecoder().decode(event.data);
+            buffer += chunk;
+
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+              const line = buffer.slice(0, newlineIndex);
+              buffer = buffer.slice(newlineIndex + 1);
+              processLine(line);
+            }
+          });
+
+          result.on("done", () => {
+            if (isCancelled) return;
+            if (buffer.trim()) {
+              processLine(buffer);
+            }
+          });
+
+          result.on("error", (err) => {
+            if (isCancelled) return;
+            console.error("[AI Service] Stream error:", err);
+            onError && onError(err);
+          });
+        } else {
+          onError && onError(new Error("Streaming not supported"));
+        }
+      } catch (err) {
+        if (isCancelled) return;
+        console.error("[AI Service Error][chatStream]:", err);
+        onError && onError(err);
+      }
+    })();
+
+    return { cancel, getFullText: () => fullText };
   },
 
   async getAiAvatar() {

@@ -41,6 +41,9 @@ Component({
     followUpQuestions: [],
   },
 
+  activeStreamController: null,
+  activeRequestId: null,
+
   lifetimes: {
     attached() {
       const userInfo = wx.getStorageSync("userInfo");
@@ -102,15 +105,36 @@ Component({
       this.setData({ inputValue: e.detail.value });
     },
 
+    _buildHistory() {
+      return this.data.messages
+        .filter((m) => {
+          if (m.role !== "ai" && m.role !== "user") return false;
+          if (!m.content) return false;
+          if (m.role === "ai" && m.status === "error") return false;
+          if (m.role === "ai" && m.status === "interrupted" && !m.isTruncated) return false;
+          return true;
+        })
+        .slice(0, 10)
+        .reverse()
+        .map((m) => ({
+          role: m.role === "ai" ? "assistant" : m.role,
+          content: m.content,
+        }));
+    },
+
+    _getTimeStr(timestamp) {
+      const date = new Date(timestamp);
+      const hours = date.getHours().toString().padStart(2, "0");
+      const minutes = date.getMinutes().toString().padStart(2, "0");
+      return `${hours}:${minutes}`;
+    },
+
     async sendMessage(e) {
       const text = (e.detail.value || this.data.inputValue).trim();
       if (!text || this.data.isTyping) return;
 
       const timestamp = Date.now();
-      const date = new Date(timestamp);
-      const hours = date.getHours().toString().padStart(2, "0");
-      const minutes = date.getMinutes().toString().padStart(2, "0");
-      const timeStr = `${hours}:${minutes}`;
+      const timeStr = this._getTimeStr(timestamp);
 
       const userMsg = {
         id: "u" + timestamp,
@@ -129,6 +153,8 @@ Component({
         status: "pending",
         name: "AI 心理助手",
         datetime: timeStr,
+        isTruncated: false,
+        continuationOf: null,
       };
 
       const currentRequestId = timestamp;
@@ -145,81 +171,188 @@ Component({
       });
       this._persistCurrentSession();
 
-      const history = this.data.messages
-        .filter((m) => m.status === "success" && m.content)
-        .slice(0, 10)
-        .reverse()
-        .map((m) => ({
-          role: m.role === "ai" ? "assistant" : m.role,
-          content: m.content,
-        }));
+      const history = this._buildHistory();
+      this._startStreamRequest(aiTempId, currentRequestId, history, null);
+    },
 
-      try {
-        const result = await aiService.chat(
-          history,
-          this.data.currentSession.sessionId
+    _startStreamRequest(aiMsgId, requestId, history, continueFrom) {
+      const controller = aiService.chatStream(
+        history,
+        this.data.currentSession.sessionId,
+        continueFrom,
+        {
+          onDelta: (delta, fullText) => {
+            if (this.activeRequestId !== requestId) return;
+            this.updateAiMsg(aiMsgId, fullText, "pending");
+          },
+          onDone: (result) => {
+            if (this.activeRequestId !== requestId) return;
+            this._handleStreamDone(aiMsgId, requestId, result);
+          },
+          onError: (err) => {
+            if (this.activeRequestId !== requestId) return;
+            console.error("AI chat stream error", err);
+            const currentContent = controller.getFullText();
+            if (currentContent && currentContent.trim()) {
+              this.updateAiMsg(aiMsgId, currentContent, "interrupted", {
+                isTruncated: true,
+              });
+            } else {
+              this.updateAiMsg(aiMsgId, "网络连接失败，请重试。", "error");
+            }
+            this._finishRequest(requestId);
+            this._persistCurrentSession();
+          },
+        }
+      );
+
+      this.activeStreamController = controller;
+    },
+
+    _handleStreamDone(aiMsgId, requestId, result) {
+      if (!result || !result.success) {
+        this.updateAiMsg(
+          aiMsgId,
+          result?.reply || "抱歉，连接断开了。",
+          "error"
         );
-
-        if (this.activeRequestId !== currentRequestId) return;
-
-        if (!result || !result.success) {
-          this.updateAiMsg(
-            aiTempId,
-            result?.reply || "抱歉，连接断开了。",
-            "error"
-          );
-          this._persistCurrentSession();
-          return;
-        }
-        this.updateAiMsg(aiTempId, result.reply, "success", {
-          risk: result.risk || false,
-          crisisGuide: result.crisisGuide || null,
-        });
+        this._finishRequest(requestId);
         this._persistCurrentSession();
+        return;
+      }
 
-        const updatedMessages = this.data.messages.map((m) => {
-          if (m.id === aiTempId) {
-            return {
-              ...m,
-              content: result.reply,
-              status: "success",
-              risk: result.risk || false,
-              crisisGuide: result.crisisGuide || null,
-            };
-          }
-          return m;
-        });
-        this.setData({
-          showFollowUps: true,
-          followUpQuestions: this._generateFollowUps(updatedMessages),
-        });
-      } catch (err) {
-        if (this.activeRequestId !== currentRequestId) return;
-        console.error("AI chat failed", err);
-        this.updateAiMsg(aiTempId, "网络连接失败，请重试。", "error");
-        this._persistCurrentSession();
-      } finally {
-        if (this.activeRequestId === currentRequestId) {
-          this.setData({ isTyping: false, isLoading: false });
-          this.activeRequestId = null;
+      this.updateAiMsg(aiMsgId, result.reply, "success", {
+        risk: result.risk || false,
+        crisisGuide: result.crisisGuide || null,
+        isTruncated: false,
+      });
+      this._persistCurrentSession();
+
+      const updatedMessages = this.data.messages.map((m) => {
+        if (m.id === aiMsgId) {
+          return {
+            ...m,
+            content: result.reply,
+            status: "success",
+            risk: result.risk || false,
+            crisisGuide: result.crisisGuide || null,
+          };
         }
+        return m;
+      });
+      this.setData({
+        showFollowUps: true,
+        followUpQuestions: this._generateFollowUps(updatedMessages),
+      });
+      this._finishRequest(requestId);
+    },
+
+    _finishRequest(requestId) {
+      if (this.activeRequestId === requestId) {
+        this.setData({ isTyping: false, isLoading: false });
+        this.activeRequestId = null;
+        this.activeStreamController = null;
       }
     },
 
     onCancel() {
       if (!this.data.isLoading) return;
 
+      const pendingMsg = this.data.messages.find((m) => m.status === "pending");
+      const currentContent = this.activeStreamController
+        ? this.activeStreamController.getFullText()
+        : pendingMsg
+        ? pendingMsg.content
+        : "";
+
       this.activeRequestId = null;
+      if (this.activeStreamController) {
+        this.activeStreamController.cancel();
+        this.activeStreamController = null;
+      }
+
       this.setData({
         isTyping: false,
         isLoading: false,
       });
 
-      const pendingMsg = this.data.messages.find((m) => m.status === "pending");
       if (pendingMsg) {
-        this.updateAiMsg(pendingMsg.id, "已终止思考。", "error");
+        if (currentContent && currentContent.trim()) {
+          this.updateAiMsg(pendingMsg.id, currentContent, "interrupted", {
+            isTruncated: true,
+          });
+        } else {
+          this.updateAiMsg(pendingMsg.id, "已终止思考。", "interrupted", {
+            isTruncated: false,
+          });
+        }
       }
       this._persistCurrentSession();
+    },
+
+    onRetryContinue(e) {
+      const { msgId } = e.currentTarget.dataset;
+      if (!msgId || this.data.isTyping) return;
+
+      const targetMsg = this.data.messages.find((m) => m.id === msgId);
+      if (!targetMsg || targetMsg.status !== "interrupted") return;
+      if (!targetMsg.content || !targetMsg.content.trim()) return;
+
+      const timestamp = Date.now();
+      const timeStr = this._getTimeStr(timestamp);
+      const currentRequestId = timestamp;
+      this.activeRequestId = currentRequestId;
+
+      const newAiMsgId = "a" + timestamp;
+      const newAiMsg = {
+        id: newAiMsgId,
+        role: "ai",
+        content: targetMsg.content,
+        status: "pending",
+        name: "AI 心理助手",
+        datetime: timeStr,
+        isTruncated: false,
+        continuationOf: msgId,
+      };
+
+      const newMessages = this.data.messages.map((m) => {
+        if (m.id === msgId) {
+          return { ...m, isTruncated: false };
+        }
+        return m;
+      });
+
+      const insertIndex = newMessages.findIndex((m) => m.id === msgId);
+      newMessages.splice(insertIndex, 0, newAiMsg);
+
+      this.setData({
+        messages: newMessages,
+        isTyping: true,
+        isLoading: true,
+        showFollowUps: false,
+      });
+      this._persistCurrentSession();
+
+      const history = this._buildHistoryForContinue(newMessages, newAiMsgId, msgId);
+      this._startStreamRequest(newAiMsgId, currentRequestId, history, targetMsg.content);
+    },
+
+    _buildHistoryForContinue(messages, newAiMsgId, interruptedMsgId) {
+      const result = [];
+      for (const m of messages) {
+        if (m.id === newAiMsgId) continue;
+        if (m.role === "ai" && m.status === "error") continue;
+        if (m.role === "ai" && m.id === interruptedMsgId) continue;
+        if (!m.content) continue;
+        result.push(m);
+      }
+      return result
+        .slice(0, 10)
+        .reverse()
+        .map((m) => ({
+          role: m.role === "ai" ? "assistant" : m.role,
+          content: m.content,
+        }));
     },
 
     updateAiMsg(tempId, content, status, extra) {

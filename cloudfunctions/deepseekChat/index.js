@@ -1,4 +1,5 @@
 const tcb = require("@cloudbase/node-sdk");
+const { Readable } = require("stream");
 
 const CRISIS_EXPLICIT_FIXED = [
   "一了百了", "没有活下去的意义",
@@ -183,13 +184,57 @@ function detectCrisis(messages) {
   return false;
 }
 
+function _buildApiMessages(messages, continueFrom) {
+  const apiMessages = [];
+
+  apiMessages.push({
+    role: "system",
+    content:
+      "你是一个温暖、富有同理心的校园心理咨询助手。\n\n" +
+      "核心原则：\n" +
+      "1. 倾听与共情优先——不要急于给建议或评判，先让学生感到被理解。\n" +
+      "2. 对于普通负面情绪（压力大、焦虑、难过、迷茫），给予正常程度的支持和鼓励，不必过度反应。\n" +
+      "3. 如果学生表露自伤或自杀倾向，务必：\n" +
+      "   - 认真对待，绝不轻视或敷衍\n" +
+      "   - 表达关心和支持，让他们感到被理解和陪伴\n" +
+      "   - 鼓励他们寻求专业帮助（心理热线、学校咨询中心等）\n" +
+      "   - 不要使用说教、命令或恐吓式语言\n" +
+      "4. 不要替代专业心理咨询，遇到超出能力范围的问题要坦诚说明并建议寻求专业帮助。\n" +
+      "5. 回复简洁温暖，避免冗长说教。",
+  });
+
+  messages.forEach((msg) => {
+    apiMessages.push({
+      role: msg.role === "ai" ? "assistant" : msg.role,
+      content: msg.content,
+    });
+  });
+
+  if (continueFrom && typeof continueFrom === "string" && continueFrom.trim()) {
+    const lastMsg = apiMessages[apiMessages.length - 1];
+    if (lastMsg && lastMsg.role === "assistant") {
+      lastMsg.content = continueFrom;
+    } else {
+      apiMessages.push({
+        role: "assistant",
+        content: continueFrom,
+      });
+    }
+    apiMessages.push({
+      role: "user",
+      content: "请你继续刚才的回答，直接接着上面的内容往下说，不要重复，也不要打招呼。",
+    });
+  }
+
+  return apiMessages;
+}
+
 exports.main = async (event, context) => {
-  // 初始化云开发环境
   const app = tcb.init({ env: tcb.SYMBOL_CURRENT_ENV });
   const ai = app.ai();
   const auth = app.auth();
 
-  const { messages, sessionId } = event;
+  const { messages, sessionId, continueFrom, stream = false } = event;
   const { openId } = auth.getUserInfo();
 
   if (!messages || !Array.isArray(messages)) {
@@ -200,73 +245,111 @@ exports.main = async (event, context) => {
     };
   }
 
+  const apiMessages = _buildApiMessages(messages, continueFrom);
+  const isRisk = detectCrisis(messages);
+
   try {
-    // 准备对话消息
-    const apiMessages = messages.map((msg) => ({
-      role: msg.role === "ai" ? "assistant" : msg.role,
-      content: msg.content,
-    }));
-
-    // 添加系统提示词
-    apiMessages.unshift({
-      role: "system",
-      content:
-        "你是一个温暖、富有同理心的校园心理咨询助手。\n\n" +
-        "核心原则：\n" +
-        "1. 倾听与共情优先——不要急于给建议或评判，先让学生感到被理解。\n" +
-        "2. 对于普通负面情绪（压力大、焦虑、难过、迷茫），给予正常程度的支持和鼓励，不必过度反应。\n" +
-        "3. 如果学生表露自伤或自杀倾向，务必：\n" +
-        "   - 认真对待，绝不轻视或敷衍\n" +
-        "   - 表达关心和支持，让他们感到被理解和陪伴\n" +
-        "   - 鼓励他们寻求专业帮助（心理热线、学校咨询中心等）\n" +
-        "   - 不要使用说教、命令或恐吓式语言\n" +
-        "4. 不要替代专业心理咨询，遇到超出能力范围的问题要坦诚说明并建议寻求专业帮助。\n" +
-        "5. 回复简洁温暖，避免冗长说教。",
-    });
-
-    // 创建模型实例 (根据参考代码)
     const aiModel = ai.createModel("deepseek");
-
-    // 调用流式文本生成 (使用 V3 版本，不需要 R1 的思维链)
     const res = await aiModel.streamText({
       model: "deepseek-v3.2",
       messages: apiMessages,
     });
 
-    let fullText = "";
+    if (stream) {
+      let fullText = "";
+      const responseStream = new Readable({
+        read() {},
+      });
 
-    // 遍历正文内容
-    for await (let data of res.dataStream) {
-      if (data === "[DONE]") {
-        break;
-      }
+      (async () => {
+        try {
+          for await (let data of res.dataStream) {
+            if (data === "[DONE]") break;
+            try {
+              const delta = data?.choices?.[0]?.delta;
+              const text = delta?.content;
+              if (text) {
+                fullText += text;
+                responseStream.push(
+                  JSON.stringify({ type: "delta", content: text }) + "\n"
+                );
+              }
+            } catch (e) {}
+          }
 
-      try {
-        const delta = data?.choices?.[0]?.delta;
-
-        // 打印生成文本内容
-        const text = delta?.content;
-        if (text) {
-          fullText += text;
+          const finalText = isRisk ? fullText + CRISIS_HELP_GUIDE : fullText;
+          responseStream.push(
+            JSON.stringify({
+              type: "done",
+              fullText: finalText,
+              risk: isRisk,
+              crisisGuide: isRisk ? CRISIS_HELP_GUIDE.trim() : null,
+              openid: openId,
+              sessionId: sessionId || null,
+            }) + "\n"
+          );
+          responseStream.push(null);
+        } catch (err) {
+          console.error("Stream error:", err);
+          responseStream.push(
+            JSON.stringify({
+              type: "error",
+              error: err.message,
+            }) + "\n"
+          );
+          responseStream.push(null);
         }
-      } catch (e) {
-        // 忽略解析错误
+      })();
+
+      return {
+        responseStream,
+        headers: {
+          "Content-Type": "application/x-ndjson",
+        },
+      };
+    } else {
+      let fullText = "";
+      for await (let data of res.dataStream) {
+        if (data === "[DONE]") break;
+        try {
+          const delta = data?.choices?.[0]?.delta;
+          const text = delta?.content;
+          if (text) {
+            fullText += text;
+          }
+        } catch (e) {}
       }
+
+      return {
+        success: true,
+        reply: isRisk ? fullText + CRISIS_HELP_GUIDE : fullText,
+        reasoning: "",
+        openid: openId,
+        sessionId: sessionId || null,
+        risk: isRisk,
+        crisisGuide: isRisk ? CRISIS_HELP_GUIDE.trim() : null,
+      };
     }
-
-    const isRisk = detectCrisis(messages);
-
-    return {
-      success: true,
-      reply: isRisk ? fullText + CRISIS_HELP_GUIDE : fullText,
-      reasoning: "",
-      openid: openId,
-      sessionId: sessionId || null,
-      risk: isRisk,
-      crisisGuide: isRisk ? CRISIS_HELP_GUIDE.trim() : null,
-    };
   } catch (err) {
     console.error("DeepSeek Call Error:", err);
+    if (stream) {
+      const errorResponseStream = new Readable({
+        read() {},
+      });
+      errorResponseStream.push(
+        JSON.stringify({
+          type: "error",
+          error: err.message,
+        }) + "\n"
+      );
+      errorResponseStream.push(null);
+      return {
+        responseStream: errorResponseStream,
+        headers: {
+          "Content-Type": "application/x-ndjson",
+        },
+      };
+    }
     return {
       success: false,
       error: err.message,
