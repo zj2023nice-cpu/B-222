@@ -2,3 +2,5 @@
 /frontend/node_modules
 /backend/target
 /backend/.m2/
+/node_modules
+/coverage
